@@ -117,6 +117,14 @@ pub enum ParseError {
     Keyword(String, String),
 }
 
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 type ParseResult<T> = std::result::Result<T, ParseError>;
 
 impl SExp {

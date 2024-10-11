@@ -1,6 +1,8 @@
-use std::{collections::{hash_map::Entry, HashMap, HashSet, VecDeque}, fmt::write};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
-use super::{AndExpr, EquivExpr, Expr, ImpliesExpr, NotExpr, OrExpr, RefExpr};
+use bitvec::ptr::write;
+
+use super::{Expr, PropOpExpr, RefExpr};
 
 pub struct Rule {
     pattern: Expr,
@@ -30,15 +32,17 @@ fn unify_impl(left: &Expr, right: &Expr, sub: &mut Subst) -> bool {
             }
             true
         }
-        (Expr::Not(NotExpr { expr: inner_1 }), Expr::Not(NotExpr { expr: inner_2 })) => unify_impl(inner_1, inner_2, sub),
-        (Expr::And(AndExpr { left: left_1, right: right_1 }), Expr::And(AndExpr { left: left_2, right: right_2 })) =>
-            unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
-        (Expr::Or(OrExpr { left: left_1, right: right_1 }), Expr::Or(OrExpr { left: left_2, right: right_2 })) =>
-            unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
-        (Expr::Implies(ImpliesExpr { premise: left_1, conclusion: right_1 }), Expr::Implies(ImpliesExpr { premise: left_2, conclusion: right_2 })) =>
-            unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
-        (Expr::Equiv(EquivExpr { left: left_1, right: right_1 }), Expr::Equiv(EquivExpr { left: left_2, right: right_2 })) =>
-            unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
+        (Expr::PropOp(p1), Expr::PropOp(p2)) if p1.op_id == p2.op_id => {
+            if p1.args.len() != p2.args.len() {
+                return false;
+            }
+            for (a, b) in std::iter::zip(&p1.args, &p2.args) {
+                if ! unify_impl(a, b, sub) {
+                    return false
+                }
+            }
+            true
+        }
         _ => false,
     }
 }
@@ -58,11 +62,10 @@ pub fn apply(sub: &Subst, expr: &Expr) -> Expr {
             Some(new_expr) => new_expr.clone(),
             None => expr.clone(),
         },
-        Expr::Not(NotExpr { expr }) => Expr::not(apply(sub, expr)),
-        Expr::Or(OrExpr { left, right }) => Expr::or(apply(sub, left), apply(sub, right)),
-        Expr::And(AndExpr { left, right }) => Expr::and(apply(sub, left), apply(sub, right)),
-        Expr::Implies(ImpliesExpr { premise, conclusion }) => Expr::implies(apply(sub, premise), apply(sub, conclusion)),
-        Expr::Equiv(EquivExpr { left, right }) => Expr::equiv(apply(sub, left), apply(sub, right)),
+        Expr::PropOp(p) => Expr::PropOp(PropOpExpr {
+            op_id: p.op_id,
+            args: p.args.iter().map(|x| apply(sub, x)).collect(),
+        }),
     }
 }
 
@@ -96,23 +99,24 @@ impl Rewriter {
         let mut parents = HashMap::new();
         let mut frontier = VecDeque::new();
         let mut visited = HashSet::new();
+        visited.insert(start.clone());
         frontier.push_back(start.clone());
         let mut child = loop {
             let curr = match frontier.pop_front() {
                 None => return None,
                 Some(node) => node,
             };
-            if visited.contains(&curr) {
-                continue;
-            }
             if curr == *goal {
                 break curr;
             }
             for next in self.expand(&curr) {
+                if visited.contains(&next) {
+                    continue;
+                }
+                visited.insert(next.clone());
                 parents.insert(next.clone(), curr.clone());
                 frontier.push_back(next);
             }
-            visited.insert(curr);
         };
         let mut path = vec![ child.clone() ];
         loop {
@@ -120,6 +124,9 @@ impl Rewriter {
                 None => break,
                 Some(node) => node,
             };
+            // if parent == child {
+            //     break;
+            // }
             path.push(parent.clone());
             child = parent.clone();
         }
