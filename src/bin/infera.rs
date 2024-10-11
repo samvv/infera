@@ -1,6 +1,6 @@
 
 use infera::sexp::{self, Emit};
-use infera::fol::{And, Equiv, Expr, Parse, Rewriter, Rule, Theorem, ToSexp};
+use infera::fol::{AndExpr, EquivExpr, Expr, Parse, Rewriter, Rule, Theorem, ToSexp};
 
 struct Prover {
     rewriter: Rewriter,
@@ -16,7 +16,7 @@ impl Prover {
 
     fn prove(&mut self, expr: &Expr) -> Option<Vec<Expr>> {
         match expr {
-            Expr::And(And { left, right }) => {
+            Expr::And(AndExpr { left, right }) => {
                 // TODO can be parallelized
                 match (self.prove(left), self.prove(right)) {
                     (Some(steps_1), Some(steps_2)) => {
@@ -30,7 +30,7 @@ impl Prover {
                     _ => None,
                 }
             }
-            Expr::Equiv(Equiv { left, right }) =>
+            Expr::Equiv(EquivExpr { left, right }) =>
                 self.rewriter.prove(left, right),
             _ => unimplemented!(),
         }

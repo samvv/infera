@@ -1,6 +1,6 @@
 use std::{collections::{hash_map::Entry, HashMap, HashSet, VecDeque}, fmt::write};
 
-use super::{And, Equiv, Expr, Implies, Not, Or, Ref};
+use super::{AndExpr, EquivExpr, Expr, ImpliesExpr, NotExpr, OrExpr, RefExpr};
 
 pub struct Rule {
     pattern: Expr,
@@ -22,7 +22,7 @@ type Subst = HashMap<String, Expr>;
 
 fn unify_impl(left: &Expr, right: &Expr, sub: &mut Subst) -> bool {
     match (left, right) {
-        (Expr::Ref(Ref { name: a }), _) => {
+        (Expr::Ref(RefExpr { name: a }), _) => {
             match sub.entry(a.clone()) {
                 Entry::Vacant(entry) => { entry.insert(right.clone()); },
                 Entry::Occupied(entry) if entry.get() == right => {},
@@ -30,14 +30,14 @@ fn unify_impl(left: &Expr, right: &Expr, sub: &mut Subst) -> bool {
             }
             true
         }
-        (Expr::Not(Not { expr: inner_1 }), Expr::Not(Not { expr: inner_2 })) => unify_impl(inner_1, inner_2, sub),
-        (Expr::And(And { left: left_1, right: right_1 }), Expr::And(And { left: left_2, right: right_2 })) =>
+        (Expr::Not(NotExpr { expr: inner_1 }), Expr::Not(NotExpr { expr: inner_2 })) => unify_impl(inner_1, inner_2, sub),
+        (Expr::And(AndExpr { left: left_1, right: right_1 }), Expr::And(AndExpr { left: left_2, right: right_2 })) =>
             unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
-        (Expr::Or(Or { left: left_1, right: right_1 }), Expr::Or(Or { left: left_2, right: right_2 })) =>
+        (Expr::Or(OrExpr { left: left_1, right: right_1 }), Expr::Or(OrExpr { left: left_2, right: right_2 })) =>
             unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
-        (Expr::Implies(Implies { premise: left_1, conclusion: right_1 }), Expr::Implies(Implies { premise: left_2, conclusion: right_2 })) =>
+        (Expr::Implies(ImpliesExpr { premise: left_1, conclusion: right_1 }), Expr::Implies(ImpliesExpr { premise: left_2, conclusion: right_2 })) =>
             unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
-        (Expr::Equiv(Equiv { left: left_1, right: right_1 }), Expr::Equiv(Equiv { left: left_2, right: right_2 })) =>
+        (Expr::Equiv(EquivExpr { left: left_1, right: right_1 }), Expr::Equiv(EquivExpr { left: left_2, right: right_2 })) =>
             unify_impl(left_1, left_2, sub) && unify_impl(right_1, right_2, sub),
         _ => false,
     }
@@ -54,15 +54,15 @@ pub fn unify(left: &Expr, right: &Expr) -> Option<Subst> {
 
 pub fn apply(sub: &Subst, expr: &Expr) -> Expr {
     match expr {
-        Expr::Ref(Ref { name }) => match sub.get(name) {
+        Expr::Ref(RefExpr { name }) => match sub.get(name) {
             Some(new_expr) => new_expr.clone(),
             None => expr.clone(),
         },
-        Expr::Not(Not { expr }) => Expr::not(apply(sub, expr)),
-        Expr::Or(Or { left, right }) => Expr::or(apply(sub, left), apply(sub, right)),
-        Expr::And(And { left, right }) => Expr::and(apply(sub, left), apply(sub, right)),
-        Expr::Implies(Implies { premise, conclusion }) => Expr::implies(apply(sub, premise), apply(sub, conclusion)),
-        Expr::Equiv(Equiv { left, right }) => Expr::equiv(apply(sub, left), apply(sub, right)),
+        Expr::Not(NotExpr { expr }) => Expr::not(apply(sub, expr)),
+        Expr::Or(OrExpr { left, right }) => Expr::or(apply(sub, left), apply(sub, right)),
+        Expr::And(AndExpr { left, right }) => Expr::and(apply(sub, left), apply(sub, right)),
+        Expr::Implies(ImpliesExpr { premise, conclusion }) => Expr::implies(apply(sub, premise), apply(sub, conclusion)),
+        Expr::Equiv(EquivExpr { left, right }) => Expr::equiv(apply(sub, left), apply(sub, right)),
     }
 }
 

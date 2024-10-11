@@ -1,7 +1,7 @@
 
 use crate::sexp::{ParseError, SExp};
 
-use super::{And, Equiv, Expr, Implies, Not, Or, Ref, Theorem};
+use super::{AndExpr, EquivExpr, Expr, ImpliesExpr, NotExpr, OrExpr, RefExpr, Theorem};
 
 const NOT_NAME: &str = "not";
 const OR_NAME: &str = "or";
@@ -46,7 +46,7 @@ impl Parse for Theorem {
 
 }
 
-impl Parse for And {
+impl Parse for AndExpr {
 
     fn parse(expr: &SExp) -> Result<Self> {
         let l = expr.as_list()?;
@@ -54,7 +54,7 @@ impl Parse for And {
         let left = Expr::parse(l.get(1)?)?;
         let right = Expr::parse(l.get(2)?)?;
         // TODO assert len(l) == 3
-        Ok(And {
+        Ok(AndExpr {
             left: Box::new(left),
             right: Box::new(right)
         })
@@ -62,7 +62,7 @@ impl Parse for And {
 
 }
 
-impl Parse for Or {
+impl Parse for OrExpr {
 
     fn parse(expr: &SExp) -> Result<Self> {
         let l = expr.as_list()?;
@@ -70,7 +70,7 @@ impl Parse for Or {
         let left = Expr::parse(l.get(1)?)?;
         let right = Expr::parse(l.get(2)?)?;
         // TODO assert len(l) == 3
-        Ok(Or {
+        Ok(OrExpr {
             left: Box::new(left),
             right: Box::new(right)
         })
@@ -78,7 +78,7 @@ impl Parse for Or {
 
 }
 
-impl Parse for Implies {
+impl Parse for ImpliesExpr {
 
     fn parse(expr: &SExp) -> Result<Self> {
         let l = expr.as_list()?;
@@ -86,7 +86,7 @@ impl Parse for Implies {
         let left = Expr::parse(l.get(1)?)?;
         let right = Expr::parse(l.get(2)?)?;
         // TODO assert len(l) == 3
-        Ok(Implies {
+        Ok(ImpliesExpr {
             premise: Box::new(left),
             conclusion: Box::new(right)
         })
@@ -94,7 +94,7 @@ impl Parse for Implies {
 
 }
 
-impl Parse for Equiv {
+impl Parse for EquivExpr {
 
     fn parse(expr: &SExp) -> Result<Self> {
         let l = expr.as_list()?;
@@ -102,7 +102,7 @@ impl Parse for Equiv {
         let left = Expr::parse(l.get(1)?)?;
         let right = Expr::parse(l.get(2)?)?;
         // TODO assert len(l) == 3
-        Ok(Equiv {
+        Ok(EquivExpr {
             left: Box::new(left),
             right: Box::new(right)
         })
@@ -110,13 +110,13 @@ impl Parse for Equiv {
 
 }
 
-impl Parse for Not {
+impl Parse for NotExpr {
 
     fn parse(expr: &SExp) -> Result<Self> {
         let l = expr.as_list()?;
         let _kw = l.get(0)?.as_keyword("not")?;
         let expr = Expr::parse(l.get(1)?)?;
-        Ok(Not {
+        Ok(NotExpr {
             expr: Box::new(expr),
         })
     }
@@ -128,14 +128,14 @@ impl Parse for Expr {
     fn parse(sexp: &SExp) -> Result<Expr> {
         Ok(match sexp {
             SExp::Integer(int) => unimplemented!(),
-            SExp::Identifier(ident) => Expr::Ref(Ref { name: ident.text.clone() }),
+            SExp::Identifier(ident) => Expr::Ref(RefExpr { name: ident.text.clone() }),
             SExp::List(l) => {
                 match l.get(0)?.as_identifier()?.text.as_str() {
-                    AND_NAME => And::parse(sexp)?.into(),
-                    OR_NAME => Or::parse(sexp)?.into(),
-                    NOT_NAME => Not::parse(sexp)?.into(),
-                    IMPLIES_NAME => Implies::parse(sexp)?.into(),
-                    EQUIV_NAME => Equiv::parse(sexp)?.into(),
+                    AND_NAME => AndExpr::parse(sexp)?.into(),
+                    OR_NAME => OrExpr::parse(sexp)?.into(),
+                    NOT_NAME => NotExpr::parse(sexp)?.into(),
+                    IMPLIES_NAME => ImpliesExpr::parse(sexp)?.into(),
+                    EQUIV_NAME => EquivExpr::parse(sexp)?.into(),
                     name => return Err(Error::Expected(
                         vec![
                             AND_NAME.to_string(),
@@ -166,13 +166,13 @@ impl ToSexp for Expr {
     }
 }
 
-impl ToSexp for Ref {
+impl ToSexp for RefExpr {
     fn to_sexp(&self) -> SExp {
         SExp::ident(self.name.clone())
     }
 }
 
-impl ToSexp for Not {
+impl ToSexp for NotExpr {
     fn to_sexp(&self) -> SExp {
         SExp::list(&[
             SExp::ident(NOT_NAME),
@@ -181,7 +181,7 @@ impl ToSexp for Not {
     }
 }
 
-impl ToSexp for Implies {
+impl ToSexp for ImpliesExpr {
     fn to_sexp(&self) -> SExp {
         SExp::list(&[
             SExp::ident(IMPLIES_NAME),
@@ -192,7 +192,7 @@ impl ToSexp for Implies {
 }
 
 
-impl ToSexp for Equiv {
+impl ToSexp for EquivExpr {
     fn to_sexp(&self) -> SExp {
         SExp::list(&[
             SExp::ident(EQUIV_NAME),
@@ -203,7 +203,7 @@ impl ToSexp for Equiv {
 }
 
 
-impl ToSexp for Or {
+impl ToSexp for OrExpr {
     fn to_sexp(&self) -> SExp {
         SExp::list(&[
             SExp::ident(OR_NAME),
@@ -213,7 +213,7 @@ impl ToSexp for Or {
     }
 }
 
-impl ToSexp for And {
+impl ToSexp for AndExpr {
     fn to_sexp(&self) -> SExp {
         SExp::list(&[
             SExp::ident(AND_NAME),
