@@ -87,7 +87,7 @@ impl <C: Iterator<Item = Result<char>>> Parser<C> {
         let end_offset;
         loop {
             let t0 = self.peek_token()?;
-            if let Token::EndOfFile = t0 {
+            if let Token::EndOfFile(..) = t0 {
                 end_offset = self.scanner.offset;
                 break;
             }
@@ -113,12 +113,12 @@ mod test {
         let SExp::List(List { open_delim, elements, tail, close_delim }) = e0 else {
             panic!("not a sexp list");
         };
-        assert_eq!(open_delim, Token::LParen(LParen { span: 0..1 }));
-        assert_eq!(elements[0], SExp::Identifier(Identifier { text: "foo".to_string(), span: 1..4 }));
-        assert_eq!(elements[1], SExp::Identifier(Identifier { text: "baz".to_string(), span: 5..8 }));
-        assert_eq!(elements[2], SExp::Identifier(Identifier { text: "bar".to_string(), span: 9..12 }));
+        assert_eq!(open_delim, Token::LParen(LParen::with_span(0..1)));
+        assert_eq!(elements[0], SExp::Identifier(Identifier::with_span(1..4, "foo".to_string())));
+        assert_eq!(elements[1], SExp::Identifier(Identifier::with_span(5..8, "baz".to_string())));
+        assert_eq!(elements[2], SExp::Identifier(Identifier::with_span(9..12, "bar".to_string())));
         assert_eq!(tail, None);
-        assert_eq!(close_delim, Token::RParen(RParen { span: 12..13 }));
+        assert_eq!(close_delim, Token::RParen(RParen::with_span(12..13)));
     }
 
     #[test]
@@ -126,7 +126,7 @@ mod test {
         let scanner = Scanner::new("foo".chars().map(|el| Ok(el)));
         let mut parser = Parser::new(scanner);
         let e0 = parser.parse_sexp().unwrap();
-        assert_eq!(e0, SExp::Identifier(Identifier { text: "foo".to_string(), span: 0..3 }));
+        assert_eq!(e0, SExp::Identifier(Identifier::with_span(0..3, "foo".to_string())));
     }
 
     #[test]
@@ -134,7 +134,7 @@ mod test {
         let scanner = Scanner::new("1234".chars().map(|el| Ok(el)));
         let mut parser = Parser::new(scanner);
         let e0 = parser.parse_sexp().unwrap();
-        assert_eq!(e0, SExp::Integer(Integer { value: 1234, span: 0..4 }));
+        assert_eq!(e0, SExp::Integer(Integer::with_span(0..4, 1234)));
     }
 
 }

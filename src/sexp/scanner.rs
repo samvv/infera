@@ -110,24 +110,24 @@ impl <C: Iterator<Item = Result<char>>> Scanner<C> {
 
         match c0 {
 
-            EOF => return Ok(Token::EndOfFile),
+            EOF => return Ok(Token::EndOfFile(EndOfFile::new())),
 
-            '(' => return Ok(Token::LParen(LParen::new(start_offset..self.offset))),
-            ')' => return Ok(Token::RParen(RParen::new(start_offset..self.offset))),
-            '[' => return Ok(Token::LBracket(LBracket::new(start_offset..self.offset))),
-            ']' => return Ok(Token::RBracket(RBracket::new(start_offset..self.offset))),
+            '(' => return Ok(Token::LParen(LParen::with_span(start_offset..self.offset))),
+            ')' => return Ok(Token::RParen(RParen::with_span(start_offset..self.offset))),
+            '[' => return Ok(Token::LBracket(LBracket::with_span(start_offset..self.offset))),
+            ']' => return Ok(Token::RBracket(RBracket::with_span(start_offset..self.offset))),
 
             '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-                let mut value = c0.to_digit(10).unwrap();
+                let mut value = c0.to_digit(10).unwrap() as i64;
                 loop {
                     let c1 = self.peek_char()?;
                     if !c1.is_ascii_digit() {
                         break;
                     }
                     self.get_char()?;
-                    value = value * 10 + c1.to_digit(10).unwrap();
+                    value = value * 10 + c1.to_digit(10).unwrap() as i64;
                 }
-                return Ok(Token::Integer(Integer { value: value as isize, span: start_offset..self.offset }))
+                return Ok(Token::Integer(Integer::with_span(start_offset..self.offset, value)))
             }
 
             'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
@@ -137,8 +137,8 @@ impl <C: Iterator<Item = Result<char>>> Scanner<C> {
                 | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J'
                 | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q'
                 | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
-                | 'Y' | 'Z' | '0' | '_' | '+' | '-' | '*'
-                | '/' | '^' | '&' | '|' | '%' | '$' | '?'
+                | 'Y' | 'Z' | '_' | '+' | '-' | '*' | '/'
+                | '^' | '&' | '|' | '%' | '$' | '?'
                 | '!' | '<' | '>' | '=' | '~'
             => {
                 let mut text = String::new();
@@ -161,7 +161,7 @@ impl <C: Iterator<Item = Result<char>>> Scanner<C> {
                     self.get_char()?;
                     text.push(c1);
                 }
-                return Ok(Token::Identifier(Identifier::new(text, start_offset..self.offset)));
+                return Ok(Token::Identifier(Identifier::with_span(start_offset..self.offset, text)));
             }
 
             _ => todo!(),

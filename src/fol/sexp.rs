@@ -27,6 +27,10 @@ pub trait Parse : Sized {
     fn parse(expr: &SExp) -> Result<Self>;
 }
 
+pub trait ToSexp {
+    fn to_sexp(&self) -> SExp;
+}
+
 impl Parse for Theorem {
 
     fn parse(expr: &SExp) -> Result<Theorem> {
@@ -149,3 +153,72 @@ impl Parse for Expr {
 
 }
 
+impl ToSexp for Expr {
+    fn to_sexp(&self) -> SExp {
+        match self {
+            Self::Ref(inner) => inner.to_sexp(),
+            Self::And(inner) => inner.to_sexp(),
+            Self::Or(inner) => inner.to_sexp(),
+            Self::Not(inner) => inner.to_sexp(),
+            Self::Implies(inner) => inner.to_sexp(),
+            Self::Equiv(inner) => inner.to_sexp(),
+        }
+    }
+}
+
+impl ToSexp for Ref {
+    fn to_sexp(&self) -> SExp {
+        SExp::ident(self.name.clone())
+    }
+}
+
+impl ToSexp for Not {
+    fn to_sexp(&self) -> SExp {
+        SExp::list(&[
+            SExp::ident(NOT_NAME),
+            self.expr.to_sexp()
+        ])
+    }
+}
+
+impl ToSexp for Implies {
+    fn to_sexp(&self) -> SExp {
+        SExp::list(&[
+            SExp::ident(IMPLIES_NAME),
+            self.premise.to_sexp(),
+            self.conclusion.to_sexp(),
+        ])
+    }
+}
+
+
+impl ToSexp for Equiv {
+    fn to_sexp(&self) -> SExp {
+        SExp::list(&[
+            SExp::ident(EQUIV_NAME),
+            self.left.to_sexp(),
+            self.right.to_sexp(),
+        ])
+    }
+}
+
+
+impl ToSexp for Or {
+    fn to_sexp(&self) -> SExp {
+        SExp::list(&[
+            SExp::ident(OR_NAME),
+            self.left.to_sexp(),
+            self.right.to_sexp(),
+        ])
+    }
+}
+
+impl ToSexp for And {
+    fn to_sexp(&self) -> SExp {
+        SExp::list(&[
+            SExp::ident(AND_NAME),
+            self.left.to_sexp(),
+            self.right.to_sexp(),
+        ])
+    }
+}

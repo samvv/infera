@@ -1,155 +1,66 @@
 
 pub type Span = std::ops::Range<usize>;
 
-pub trait Spanned { 
+pub trait Spanned {
 
-    fn span(&self) -> Span;
+    fn span(&self) -> Option<Span>;
 
     fn start_offset(&self) -> usize {
-        self.span().start
+        self.span().unwrap().start
     }
 
     fn end_offset(&self) -> usize {
-        self.span().end
+        self.span().unwrap().end
     }
 
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Dot {
-    pub span: Span,
-}
-
-impl Spanned for Dot {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LParen {
-    pub span: Span,
-}
-
-impl LParen {
-    pub fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
-
-impl Spanned for LParen {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LBracket {
-    pub span: Span,
-}
-
-impl LBracket {
-    pub fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
-
-impl Spanned for LBracket {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RParen {
-    pub span: Span,
-}
-
-impl RParen {
-    pub fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
-
-impl Spanned for RParen {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RBracket {
-    pub span: Span,
-}
-
-impl RBracket {
-    pub fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
-
-impl Spanned for RBracket {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Identifier {
-    pub text: String,
-    pub span: Span,
-}
-
-impl Identifier {
-    pub fn new(text: String, span: Span) -> Self {
-        Self { text, span }
-    }
-}
-
-impl Spanned for Identifier {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Integer {
-    pub value: isize,
-    pub span: Span,
-}
-
-impl Spanned for Integer {
-    fn span(&self) -> Span {
-        self.span.clone()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Token {
-    Dot(Dot),
-    Integer(Integer),
-    Identifier(Identifier),
-    LParen(LParen),
-    LBracket(LBracket),
-    RParen(RParen),
-    RBracket(RBracket),
-    EndOfFile,
-}
-
-impl Spanned for Token {
-    fn span(&self) -> Span {
-        match self {
-            Token::Dot(inner) => inner.span(),
-            Token::Integer(inner) => inner.span(),
-            Token::Identifier(inner) => inner.span(),
-            Token::LParen(inner) => inner.span(),
-            Token::RParen(inner) => inner.span(),
-            Token::LBracket(inner) => inner.span(),
-            Token::RBracket(inner) => inner.span(),
-            Token::EndOfFile => panic!("end-of-file token does not have a span"),
+macro_rules! define_tokens {
+    ($($name:ident { $($field_name:ident: $field_ty:ty )* } ),* $(,)?) => {
+        $(
+            #[derive(Clone, Debug, PartialEq, Eq)]
+            pub struct $name {
+                pub span: Option<Span>,
+                $(pub $field_name: $field_ty),*
+            }
+            impl $name {
+                pub fn with_span(span: Span $(, $field_name: $field_ty)*) -> Self {
+                    Self { span: Some(span) $(, $field_name )* }
+                }
+                pub fn new($($field_name: $field_ty),*) -> Self {
+                    Self { span: None $(, $field_name )* }
+                }
+            }
+            impl Spanned for $name {
+                fn span(&self) -> Option<Span> {
+                    self.span.clone()
+                }
+            }
+        )*
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub enum Token {
+            $($name($name)),*
         }
-    }
+        impl Spanned for Token {
+            fn span(&self) -> Option<Span> {
+                match self {
+                    $(Self::$name(inner) => inner.span(),)*
+                    }
+                }
+            }
+        }
 }
+
+define_tokens!(
+    EndOfFile {},
+    Dot {},
+    LParen {},
+    RParen {},
+    LBracket {},
+    RBracket {},
+    Identifier { text: String },
+    Integer { value: i64 },
+);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tail {
@@ -158,8 +69,8 @@ pub struct Tail {
 }
 
 impl Spanned for Tail {
-    fn span(&self) -> Span {
-        self.dot.start_offset() .. self.expr.end_offset()
+    fn span(&self) -> Option<Span> {
+        Some(self.dot.start_offset() .. self.expr.end_offset())
     }
 }
 
@@ -210,6 +121,19 @@ type ParseResult<T> = std::result::Result<T, ParseError>;
 
 impl SExp {
 
+    pub fn list(elements: &[SExp]) -> Self {
+        SExp::List(List {
+            open_delim: Token::LParen(LParen::new()),
+            elements: elements.to_vec(),
+            tail: None,
+            close_delim: Token::RParen(RParen::new()),
+        })
+    }
+
+    pub fn ident<S: Into<String>>(s: S) -> Self {
+        SExp::Identifier(Identifier::new(s.into()))
+    }
+
     pub fn as_list(&self) -> ParseResult<&List> {
         match self {
             SExp::List(inner) => Ok(inner),
@@ -242,9 +166,9 @@ impl SExp {
 }
 
 impl Spanned for SExp {
-    fn span(&self) -> Span {
+    fn span(&self) -> Option<Span> {
         match self {
-            SExp::List(List { open_delim, close_delim, .. }) => open_delim.start_offset()..close_delim.end_offset(),
+            SExp::List(List { open_delim, close_delim, .. }) => Some(open_delim.start_offset()..close_delim.end_offset()),
             SExp::Identifier(name) => name.span(),
             SExp::Integer(int) => int.span(),
         }
@@ -258,8 +182,8 @@ pub struct SFile {
 }
 
 impl Spanned for SFile {
-    fn span(&self) -> Span {
-        0..self.end_offset
+    fn span(&self) -> Option<Span> {
+        Some(0..self.end_offset)
     }
 }
 

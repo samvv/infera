@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::{collections::{hash_map::Entry, HashMap, HashSet, VecDeque}, fmt::write};
 
 use super::{And, Equiv, Expr, Implies, Not, Or, Ref};
 
@@ -82,7 +82,7 @@ impl Rewriter {
         self.rules.push(rule);
     }
 
-    pub fn expand(&self, expr: Expr) -> Vec<Expr> {
+    pub fn expand(&self, expr: &Expr) -> Vec<Expr> {
         let mut out = Vec::new();
         for rule in &self.rules {
             if let Some(sub) = unify(&rule.pattern, &expr) {
@@ -92,8 +92,39 @@ impl Rewriter {
         out
     }
 
-    pub fn prove(&mut self, expr: Expr, goal: Expr) {
-        unimplemented!()
+    pub fn prove(&mut self, start: &Expr, goal: &Expr) -> Option<Vec<Expr>> {
+        let mut parents = HashMap::new();
+        let mut frontier = VecDeque::new();
+        let mut visited = HashSet::new();
+        frontier.push_back(start.clone());
+        let mut child = loop {
+            let curr = match frontier.pop_front() {
+                None => return None,
+                Some(node) => node,
+            };
+            if visited.contains(&curr) {
+                continue;
+            }
+            if curr == *goal {
+                break curr;
+            }
+            for next in self.expand(&curr) {
+                parents.insert(next.clone(), curr.clone());
+                frontier.push_back(next);
+            }
+            visited.insert(curr);
+        };
+        let mut path = vec![ child.clone() ];
+        loop {
+            let parent = match parents.get(&child) {
+                None => break,
+                Some(node) => node,
+            };
+            path.push(parent.clone());
+            child = parent.clone();
+        }
+        path.reverse();
+        Some(path)
     }
 
 }
