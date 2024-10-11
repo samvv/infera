@@ -1,5 +1,5 @@
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expr {
     Ref(Ref),
     Not(Not),
@@ -9,41 +9,81 @@ pub enum Expr {
     Equiv(Equiv),
 }
 
-#[derive(Debug)]
+impl Expr {
+
+    pub fn name<S: Into<String>>(s: S) -> Expr {
+        Expr::Ref(Ref { name: s.into() })
+    }
+
+    pub fn and(left: Expr, right: Expr) -> Expr {
+        Expr::And(And {
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn or(left: Expr, right: Expr) -> Expr {
+        Expr::Or(Or {
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+    pub fn not(expr: Expr) -> Expr {
+        Expr::Not(Not { expr: Box::new(expr) })
+    }
+
+    pub fn implies(premise: Expr, conclusion: Expr) -> Expr {
+        Expr::Implies(Implies {
+            premise: Box::new(premise),
+            conclusion: Box::new(conclusion),
+        })
+    }
+
+    pub fn equiv(left: Expr, right: Expr) -> Expr {
+        Expr::Equiv(Equiv {
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Theorem {
     pub name: String,
     pub body: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Ref {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct And {
     pub left: Box<Expr>,
     pub right: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Not {
     pub expr: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Or {
     pub left: Box<Expr>,
     pub right: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Implies {
     pub premise: Box<Expr>,
     pub conclusion: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Equiv {
     pub left: Box<Expr>,
     pub right: Box<Expr>,
