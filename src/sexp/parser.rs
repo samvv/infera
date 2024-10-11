@@ -72,7 +72,7 @@ impl <C: Iterator<Item = Result<char>>> Parser<C> {
                 Token::RParen(..) => {
                     match stack.pop_back() {
                         Some((open_delim, elements, tail)) => {
-                            element!(SExp::List { open_delim, elements, tail, close_delim: t0 });
+                            element!(SExp::List(List { open_delim, elements, tail, close_delim: t0 }));
                         },
                         None => todo!(), // Error
                     }
@@ -110,7 +110,7 @@ mod test {
         let scanner = Scanner::new("(foo baz bar)".chars().map(|el| Ok(el)));
         let mut parser = Parser::new(scanner);
         let e0 = parser.parse_sexp().unwrap();
-        let SExp::List { open_delim, elements, tail, close_delim } = e0 else {
+        let SExp::List(List { open_delim, elements, tail, close_delim }) = e0 else {
             panic!("not a sexp list");
         };
         assert_eq!(open_delim, Token::LParen(LParen { span: 0..1 }));

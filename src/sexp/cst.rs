@@ -164,21 +164,87 @@ impl Spanned for Tail {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct List {
+    pub open_delim: Token,
+    pub elements: Vec<SExp>,
+    pub tail: Option<Box<Tail>>,
+    pub close_delim: Token,
+}
+
+impl List {
+
+    pub fn get(&self, count: usize) -> ParseResult<&SExp> {
+        match self.elements.iter().nth(count) {
+            None => Err(ParseError::Index(count)),
+            Some(element) => Ok(element),
+        }
+    }
+
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Expected {
+    List,
+    Identifier,
+    Integer,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SExp {
-    List {
-        open_delim: Token,
-        elements: Vec<SExp>,
-        tail: Option<Box<Tail>>,
-        close_delim: Token,
-    },
+    List(List),
     Identifier(Identifier),
     Integer(Integer),
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    /// Returned when an S-expression was of the wrong kind.
+    Type(Expected),
+    /// Returned when an offset was out of range.
+    Index(usize),
+    /// Returned when a specific keyword was expected
+    Keyword(String, String),
+}
+
+type ParseResult<T> = std::result::Result<T, ParseError>;
+
+impl SExp {
+
+    pub fn as_list(&self) -> ParseResult<&List> {
+        match self {
+            SExp::List(inner) => Ok(inner),
+            _ => Err(ParseError::Type(Expected::List)),
+        }
+    }
+
+    pub fn as_identifier(&self) -> ParseResult<&Identifier> {
+        match self {
+            SExp::Identifier(inner) => Ok(inner),
+            _ => Err(ParseError::Type(Expected::Integer)),
+        }
+    }
+
+    pub fn as_integer(&self) -> ParseResult<&Integer> {
+        match self {
+            SExp::Integer(inner) => Ok(inner),
+            _ => Err(ParseError::Type(Expected::Integer)),
+        }
+    }
+
+    pub fn as_keyword<S: AsRef<str>>(&self, str: S) -> ParseResult<&Identifier> {
+        let name = self.as_identifier()?;
+        if name.text != str.as_ref() {
+            return Err(ParseError::Keyword(name.text.clone(), "defthm".to_string()));
+        }
+        Ok(name)
+    }
+
 }
 
 impl Spanned for SExp {
     fn span(&self) -> Span {
         match self {
-            SExp::List { open_delim, close_delim, .. } => open_delim.start_offset()..close_delim.end_offset(),
+            SExp::List(List { open_delim, close_delim, .. }) => open_delim.start_offset()..close_delim.end_offset(),
             SExp::Identifier(name) => name.span(),
             SExp::Integer(int) => int.span(),
         }
