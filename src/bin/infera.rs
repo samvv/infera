@@ -3,16 +3,16 @@ use core::panic;
 use std::collections::HashMap;
 
 use infera::sexp::{self, Emit};
-use infera::fol::{Expr, OpDesc, Parser, PropOpExpr, Rewriter, Rule, Theorem, ToSexp, AND_TABLE, BUILTIN_OPS, EQUIV_TABLE};
+use infera::fol::{smallest_expr, Expr, OpDesc, Parser, PropOpExpr, Rewriter, Rule, Theorem, ToSexp, AND_TABLE, BUILTIN_OPS, EQUIV_TABLE};
 
-struct Prover {
-    rewriter: Rewriter,
+struct Prover<'h> {
+    rewriter: Rewriter<'h>,
     ops: HashMap<usize, OpDesc>,
 }
 
-impl Prover {
+impl <'h> Prover<'h> {
 
-    pub fn new(rewriter: Rewriter, ops: &[OpDesc]) -> Self {
+    pub fn new(rewriter: Rewriter<'h>, ops: &[OpDesc]) -> Self {
         let m = ops.iter().map(|o| (o.id, o.clone())).collect();
         Self {
             rewriter,
@@ -45,7 +45,7 @@ impl Prover {
             Expr::PropOp(op) if self.is_equiv_op(op) => {
                 let left = op.args.iter().nth(0).unwrap();
                 let right = op.args.iter().nth(1).unwrap();
-                println!("Going to prove that {} is equivalent to {}", left.to_sexp().emit_string().unwrap(), right.to_sexp().emit_string().unwrap());
+                println!("ℹ️ Going to prove that {} is equivalent to {}", left.to_sexp().emit_string().unwrap(), right.to_sexp().emit_string().unwrap());
                 self.rewriter.prove(left, right)
             },
             _ => unimplemented!(),
@@ -62,6 +62,8 @@ fn main() -> anyhow::Result<()> {
     let mut parser = Parser::with_ops(&ops);
 
     let mut rewriter = Rewriter::new(10000);
+
+    rewriter.add_heuristic(1.0, smallest_expr);
 
     let kb = sexp::parse_file("kb.scm")?;
     for el in kb.elements {
@@ -90,14 +92,14 @@ fn main() -> anyhow::Result<()> {
     // eprintln!("{:#?}", rw.expand(&Expr::not(Expr::not(Expr::and(Expr::name("b"), Expr::name("c"))))));
 
     for thm in thms {
-        println!("Proving {} ...", thm.name);
+        println!("⌛ Proving {} ...", thm.name);
         match prover.prove(&thm.body) {
-            None => println!("Statement could not be proven."),
+            None => println!("❌ Statement could not be proven."),
             Some(steps) => {
                 for step in steps {
                     println!("{}", step.to_sexp().emit_string()?);
                 }
-                println!("QED");
+                println!("✅ QED");
             }
         }
     }

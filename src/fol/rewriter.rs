@@ -1,4 +1,5 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
+use core::f32;
+use std::{cmp::Ordering, collections::{hash_map::Entry, BinaryHeap, HashMap, HashSet, VecDeque}};
 
 use super::{Expr, PropOpExpr, RefExpr};
 
@@ -67,18 +68,84 @@ pub fn apply(sub: &Subst, expr: &Expr) -> Expr {
     }
 }
 
-pub struct Rewriter {
+pub trait Heuristic = Fn(&Expr, &Expr) -> f32;
+
+fn sigmoid(x: f32) -> f32 {
+    let p = f32::powf(f32::consts::E, x);
+    p / (1.0 + p)
+}
+
+pub fn smallest_expr(start: &Expr, goal: &Expr) -> f32 {
+    let x = start.len() as f32 / goal.len() as f32;
+    2.0 * (sigmoid(x) - 0.5)
+}
+
+pub struct Rewriter<'a> {
+    heuristics: Vec<(f32, Box<dyn Heuristic + 'a>)>,
     max_iter: usize,
     rules: Vec<Rule>,
 }
 
-impl Rewriter {
+struct Edge {
+    cost: f32,
+    expr: Expr,
+}
+
+impl Edge {
+
+    fn new(expr: Expr, cost: f32) -> Self {
+        Self {
+            expr,
+            cost,
+        }
+    }
+
+}
+
+const EPSILON: f32 = 0.000001; // Taken from glMatrix
+
+fn approx_eq(a: f32, b: f32) -> bool {
+    return (a - b).abs() <= EPSILON * f32::max(1.0, f32::max(a.abs(), b.abs())); // Taken from glMatrix
+}
+
+impl PartialEq for Edge {
+    fn eq(&self, other: &Self) -> bool {
+        approx_eq(self.cost, other.cost) && self.expr.eq(&other.expr)
+    }
+}
+
+impl Eq for Edge {}
+
+impl Ord for Edge {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if approx_eq(self.cost, other.cost) {
+            self.expr.cmp(&other.expr)
+        } else if self.cost < other.cost {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    }
+}
+
+impl PartialOrd for Edge {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl <'a> Rewriter<'a> {
 
     pub fn new(max_iter: usize) -> Self {
         Self {
             max_iter,
+            heuristics: Vec::new(),
             rules: Vec::new(),
         }
+    }
+
+    pub fn add_heuristic<H: Heuristic + 'a>(&mut self, weight: f32, heuristic: H) {
+        self.heuristics.push((weight, Box::new(heuristic)));
     }
 
     pub fn add_rule(&mut self, rule: Rule) {
@@ -95,13 +162,14 @@ impl Rewriter {
         out
     }
 
-    pub fn expand_visit(&self, expr: &Expr, out: &mut Vec<Expr>) {
+    pub fn expand_visit(&self, expr: &Expr) -> Vec<Expr> {
+        let mut out = Vec::new();
         out.extend(self.expand_unify(expr));
         match expr {
             Expr::Ref(..) => {},
             Expr::PropOp(op) => {
                 for (i, arg) in op.args.iter().enumerate() {
-                    for new_arg in self.expand_unify(&arg) {
+                    for new_arg in self.expand_visit(&arg) {
                         let mut new_args: Vec<_> = op.args.iter().take(i).cloned().collect();
                         new_args.push(new_arg);
                         new_args.extend(op.args.iter().skip(i+1).cloned());
@@ -113,22 +181,32 @@ impl Rewriter {
                 }
             }
         }
+        out
     }
 
     pub fn expand(&self, expr: &Expr) -> Vec<Expr> {
-        let mut out = Vec::new();
-        self.expand_visit(expr, &mut out);
-        out
+        self.expand_visit(expr)
+    }
+
+    pub fn estimate(&self, a: &Expr, b: &Expr) -> f32 {
+        let mut res = 0.0;
+        let mut weights = 0.0;
+        for (w, h) in &self.heuristics {
+            weights += w;
+            res += w * h(a, b);
+        }
+        res / weights
     }
 
     pub fn prove(&mut self, start: &Expr, goal: &Expr) -> Option<Vec<Expr>> {
         let mut parents = HashMap::new();
-        let mut frontier = VecDeque::new();
+        let mut frontier = BinaryHeap::new();
         let mut visited = HashSet::new();
         visited.insert(start.clone());
-        frontier.push_back(start.clone());
+        frontier.push(Edge::new(start.clone(), 0.0));
         let mut k = 0;
         let mut child = loop {
+            // eprintln!("Iter {}", k);
             if k % 1000 == 0 {
                 eprintln!("Starting iteration {}", k);
             }
@@ -136,20 +214,23 @@ impl Rewriter {
                 // TODO return something more useful
                 return None;
             }
-            let curr = match frontier.pop_front() {
+            let curr = match frontier.pop() {
                 None => return None,
-                Some(node) => node,
+                Some(edge) => edge.expr,
             };
             if curr == *goal {
                 break curr;
             }
-            for next in self.expand(&curr) {
-                if visited.contains(&next) {
+            for expr in self.expand(&curr) {
+                if visited.contains(&expr) {
                     continue;
                 }
-                visited.insert(next.clone());
-                parents.insert(next.clone(), curr.clone());
-                frontier.push_back(next);
+                let cost = self.estimate(&curr, &expr);
+                // eprintln!("Cost = {}, len = {}, orig len = {}", cost, expr.len(), curr.len());
+                // eprintln!("{:?}", expr);
+                visited.insert(expr.clone());
+                parents.insert(expr.clone(), curr.clone());
+                frontier.push(Edge::new(expr, cost));
             }
             k += 1;
         };

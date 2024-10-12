@@ -143,7 +143,7 @@ lazy_static! {
 
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum Expr {
     Ref(RefExpr),
     PropOp(PropOpExpr),
@@ -155,20 +155,27 @@ impl Expr {
         Expr::Ref(RefExpr { name: s.into() })
     }
 
+    pub fn len(&self) -> u32 {
+        match self {
+            Expr::Ref(..) => 1,
+            Expr::PropOp(op) => 1 + op.args.iter().map(|arg| arg.len()).sum::<u32>(),
+        }
+    }
+
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Theorem {
     pub name: String,
     pub body: Expr,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct RefExpr {
     pub name: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct PropOpExpr {
     pub op_id: usize,
     pub args: Vec<Expr>,
