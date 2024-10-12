@@ -1,7 +1,5 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
-use bitvec::ptr::write;
-
 use super::{Expr, PropOpExpr, RefExpr};
 
 pub struct Rule {
@@ -70,13 +68,15 @@ pub fn apply(sub: &Subst, expr: &Expr) -> Expr {
 }
 
 pub struct Rewriter {
+    max_iter: usize,
     rules: Vec<Rule>,
 }
 
 impl Rewriter {
 
-    pub fn new() -> Self {
+    pub fn new(max_iter: usize) -> Self {
         Self {
+            max_iter,
             rules: Vec::new(),
         }
     }
@@ -101,7 +101,15 @@ impl Rewriter {
         let mut visited = HashSet::new();
         visited.insert(start.clone());
         frontier.push_back(start.clone());
+        let mut k = 0;
         let mut child = loop {
+            if k % 1000 == 0 {
+                eprintln!("Starting iteration {}", k);
+            }
+            if k > self.max_iter {
+                // TODO return something more useful
+                return None;
+            }
             let curr = match frontier.pop_front() {
                 None => return None,
                 Some(node) => node,
@@ -117,6 +125,7 @@ impl Rewriter {
                 parents.insert(next.clone(), curr.clone());
                 frontier.push_back(next);
             }
+            k += 1;
         };
         let mut path = vec![ child.clone() ];
         loop {
@@ -124,9 +133,6 @@ impl Rewriter {
                 None => break,
                 Some(node) => node,
             };
-            // if parent == child {
-            //     break;
-            // }
             path.push(parent.clone());
             child = parent.clone();
         }

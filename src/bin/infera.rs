@@ -56,10 +56,12 @@ impl Prover {
 
 fn main() -> anyhow::Result<()> {
 
+    eprintln!("Keep an eye on your RAM usage and terminate this application if neccessary!");
+
     let mut ops = BUILTIN_OPS.clone();
     let mut parser = Parser::with_ops(&ops);
 
-    let mut rewriter = Rewriter::new();
+    let mut rewriter = Rewriter::new(10000);
 
     let kb = sexp::parse_file("kb.scm")?;
     for el in kb.elements {
