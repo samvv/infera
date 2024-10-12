@@ -1,7 +1,7 @@
 use core::f32;
 use std::{cmp::Ordering, collections::{hash_map::Entry, BinaryHeap, HashMap, HashSet, VecDeque}};
 
-use super::{Expr, PropOpExpr, RefExpr};
+use super::{Expr, Name, PropOpExpr, RefExpr};
 
 pub struct Rule {
     pattern: Expr,
@@ -19,7 +19,7 @@ impl Rule {
 
 }
 
-type Subst = HashMap<String, Expr>;
+type Subst = HashMap<Name, Expr>;
 
 fn unify_impl(left: &Expr, right: &Expr, sub: &mut Subst) -> bool {
     match (left, right) {
@@ -75,7 +75,7 @@ fn sigmoid(x: f32) -> f32 {
     p / (1.0 + p)
 }
 
-pub fn smallest_expr(start: &Expr, goal: &Expr) -> f32 {
+pub fn matching_size(start: &Expr, goal: &Expr) -> f32 {
     let x = start.len() as f32 / goal.len() as f32;
     2.0 * (sigmoid(x) - 0.5)
 }
