@@ -85,13 +85,39 @@ impl Rewriter {
         self.rules.push(rule);
     }
 
-    pub fn expand(&self, expr: &Expr) -> Vec<Expr> {
+    pub fn expand_unify(&self, expr: &Expr) -> Vec<Expr> {
         let mut out = Vec::new();
         for rule in &self.rules {
             if let Some(sub) = unify(&rule.pattern, &expr) {
                 out.push(apply(&sub, &rule.expr));
             }
         }
+        out
+    }
+
+    pub fn expand_visit(&self, expr: &Expr, out: &mut Vec<Expr>) {
+        out.extend(self.expand_unify(expr));
+        match expr {
+            Expr::Ref(..) => {},
+            Expr::PropOp(op) => {
+                for (i, arg) in op.args.iter().enumerate() {
+                    for new_arg in self.expand_unify(&arg) {
+                        let mut new_args: Vec<_> = op.args.iter().take(i).cloned().collect();
+                        new_args.push(new_arg);
+                        new_args.extend(op.args.iter().skip(i+1).cloned());
+                        out.push(Expr::PropOp(PropOpExpr {
+                            op_id: op.op_id,
+                            args: new_args,
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn expand(&self, expr: &Expr) -> Vec<Expr> {
+        let mut out = Vec::new();
+        self.expand_visit(expr, &mut out);
         out
     }
 
