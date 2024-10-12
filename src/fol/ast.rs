@@ -1,5 +1,5 @@
 
-use bitvec::{bitvec, ptr::write, vec::BitVec};
+use bitvec::{bitvec, vec::BitVec};
 use lazy_static::lazy_static;
 
 #[derive(Clone)]
