@@ -1,7 +1,6 @@
-use core::f32;
-use std::{cmp::Ordering, collections::{hash_map::Entry, BinaryHeap, HashMap, HashSet, VecDeque}};
+use std::{cmp::Ordering, collections::{hash_map::Entry, BinaryHeap, HashMap, HashSet}};
 
-use super::{Expr, Name, PropOpExpr, RefExpr};
+use super::{Expr, Name, PredBody, PropOpExpr, RefExpr};
 
 pub struct Rule {
     pattern: Expr,
@@ -55,6 +54,13 @@ pub fn unify(left: &Expr, right: &Expr) -> Option<Subst> {
     }
 }
 
+fn apply_pred_body(sub: &Subst, body: &PredBody) -> PredBody {
+    match sub.get(&body.name) {
+        None => PredBody::new(body.name, apply(sub, &body.expr)),
+        Some(_) => body.clone(),
+    }
+}
+
 pub fn apply(sub: &Subst, expr: &Expr) -> Expr {
     match expr {
         Expr::Ref(RefExpr { name }) => match sub.get(name) {
@@ -65,13 +71,15 @@ pub fn apply(sub: &Subst, expr: &Expr) -> Expr {
             op_id: p.op_id,
             args: p.args.iter().map(|x| apply(sub, x)).collect(),
         }),
+        Expr::Forall(q) => Expr::Forall(apply_pred_body(sub, q)),
+        Expr::Exists(q) => Expr::Forall(apply_pred_body(sub, q)),
     }
 }
 
 pub trait Heuristic = Fn(&Expr, &Expr) -> f32;
 
 fn sigmoid(x: f32) -> f32 {
-    let p = f32::powf(f32::consts::E, x);
+    let p = f32::powf(std::f32::consts::E, x);
     p / (1.0 + p)
 }
 
@@ -179,7 +187,9 @@ impl <'a> Rewriter<'a> {
                         }));
                     }
                 }
-            }
+            },
+            // TODO
+            _ => {},
         }
         out
     }

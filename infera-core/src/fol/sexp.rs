@@ -1,11 +1,15 @@
 
-use crate::sexp::{ParseError, SExp};
+use crate::sexp::{List, ParseError, SExp};
 
-use super::{AstMeta, Expr, PropOpExpr, RefExpr, Theorem};
+use super::{AstMeta, Expr, PredBody, PropOpExpr, RefExpr, Theorem};
+
+pub const EXISTS_NAME: &str = "exists";
+pub const FORALL_NAME: &str = "forall";
 
 #[derive(Debug)]
 pub enum Error {
     UnexpectedPropOpKeyword,
+    InvalidSExp,
     Convert(ParseError),
 }
 
@@ -75,11 +79,17 @@ impl FromSexp for PropOpExpr {
 
 impl FromSexp for RefExpr {
 
-    fn from_sexp(expr: &SExp, meta: &mut AstMeta) -> Result<RefExpr> {
-        let ident = expr.as_identifier()?;
+    fn from_sexp(sexp: &SExp, meta: &mut AstMeta) -> Result<RefExpr> {
+        let ident = sexp.as_identifier()?;
         Ok(RefExpr { name: meta.get_or_intern(&ident.text) })
     }
 
+}
+
+fn pred_body_from_list(l: &List, meta: &mut AstMeta) -> Result<PredBody> {
+    let name = l.get(1)?.as_identifier()?;
+    let expr = Expr::from_sexp(l.get(2)?, meta)?;
+    Ok(PredBody { name: meta.get_or_intern(&name.text), expr: Box::new(expr) })
 }
 
 impl FromSexp for Expr {
@@ -88,10 +98,26 @@ impl FromSexp for Expr {
         Ok(match sexp {
             SExp::Integer(..) => unimplemented!(),
             SExp::Identifier(..) => RefExpr::from_sexp(sexp, meta)?.into(),
-            SExp::List(..) => PropOpExpr::from_sexp(sexp, meta)?.into(),
+            SExp::List(l) if l.elements.len() > 1 => {
+                let kw = l.get(0)?.as_identifier()?.text.as_str();
+                match kw {
+                    EXISTS_NAME => Expr::Exists(pred_body_from_list(l, meta)?),
+                    FORALL_NAME => Expr::Forall(pred_body_from_list(l, meta)?),
+                    _ => PropOpExpr::from_sexp(sexp, meta)?.into()
+                }
+            },
+            _ => return Err(Error::InvalidSExp),
         })
     }
 
+}
+
+fn pred_to_sexp(name: &str, body: &PredBody, meta: &AstMeta) -> SExp {
+    let mut v = Vec::new();
+    v.push(SExp::ident(name));
+    v.push(SExp::ident(meta.resolve_name(body.name).unwrap()));
+    v.push(body.expr.to_sexp(meta));
+    SExp::list(v)
 }
 
 impl ToSexp for Expr  {
@@ -100,8 +126,11 @@ impl ToSexp for Expr  {
         match self {
             Self::Ref(inner) => inner.to_sexp(meta),
             Self::PropOp(inner) => inner.to_sexp(meta),
+            Self::Forall(inner) => pred_to_sexp(EXISTS_NAME, inner, meta),
+            Self::Exists(inner) => pred_to_sexp(EXISTS_NAME, inner, meta),
         }
     }
+
 }
 
 impl ToSexp for RefExpr {
@@ -121,7 +150,7 @@ impl ToSexp for PropOpExpr {
         for arg in &self.args {
             v.push(arg.to_sexp(meta));
         }
-        SExp::list(&v)
+        SExp::list(v)
     }
 
 }

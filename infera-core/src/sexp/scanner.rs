@@ -182,7 +182,7 @@ mod test {
     fn test_scan_identifier() {
         let mut scanner = Scanner::from_str("foo");
         let t0 = scanner.scan().unwrap();
-        assert_eq!(t0, Token::Identifier(Identifier { text: "foo".to_string(), span: 0..3 }));
+        assert_eq!(t0, Token::Identifier(Identifier { text: "foo".to_string(), span: Some(0..3) }));
     }
 
 }

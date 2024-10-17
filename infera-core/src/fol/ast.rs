@@ -3,13 +3,13 @@ use std::collections::HashMap;
 
 use bitvec::{bitvec, vec::BitVec};
 use lazy_static::lazy_static;
-use string_interner::{DefaultStringInterner, DefaultSymbol, StringInterner, Symbol};
+use string_interner::{DefaultStringInterner, DefaultSymbol};
 
-pub type OpId = u32;
+pub type PropOpId = u32;
 
 #[derive(Clone)]
-pub struct OpDesc {
-    pub id: OpId,
+pub struct PropOpDesc {
+    pub id: PropOpId,
     pub arity: u16,
     pub symbol: String,
     pub table: TruthTable,
@@ -60,11 +60,11 @@ impl TruthTable {
 
 }
 
-pub const AND_ID: OpId = 0;
-pub const OR_ID: OpId = 1;
-pub const NOT_ID: OpId = 2;
-pub const IMPLIES_ID: OpId = 3;
-pub const EQUIV_ID: OpId = 4;
+pub const AND_ID: PropOpId = 0;
+pub const OR_ID: PropOpId = 1;
+pub const NOT_ID: PropOpId = 2;
+pub const IMPLIES_ID: PropOpId = 3;
+pub const EQUIV_ID: PropOpId = 4;
 
 lazy_static! {
 
@@ -110,39 +110,39 @@ lazy_static! {
         table
     };
 
-    pub static ref BUILTIN_OPS: Vec<OpDesc> = {
+    pub static ref BUILTIN_OPS: Vec<PropOpDesc> = {
 
         let mut ops = Vec::new();
 
-        ops.push(OpDesc {
+        ops.push(PropOpDesc {
             id: AND_ID,
             arity: 2,
             symbol: "and".to_string(),
             table: AND_TABLE.clone(),
         });
 
-        ops.push(OpDesc {
+        ops.push(PropOpDesc {
             id: OR_ID,
             arity: 2,
             symbol: "or".to_string(),
             table: OR_TABLE.clone(),
         });
 
-        ops.push(OpDesc {
+        ops.push(PropOpDesc {
             id: IMPLIES_ID,
             arity: 2,
             symbol: "=>".to_string(),
             table: IMPLIES_TABLE.clone(),
         });
 
-        ops.push(OpDesc {
+        ops.push(PropOpDesc {
             id: EQUIV_ID,
             arity: 2,
             symbol: "equiv".to_string(),
             table: EQUIV_TABLE.clone(),
         });
 
-        ops.push(OpDesc {
+        ops.push(PropOpDesc {
             id: NOT_ID,
             arity: 1,
             symbol: "not".to_string(),
@@ -155,8 +155,8 @@ lazy_static! {
 }
 
 pub struct AstMeta {
-    op_desc_by_id: HashMap<OpId, OpDesc>,
-    op_desc_by_symbol: HashMap<Name, OpDesc>,
+    op_desc_by_id: HashMap<PropOpId, PropOpDesc>,
+    op_desc_by_symbol: HashMap<Name, PropOpDesc>,
     interner: DefaultStringInterner,
 }
 
@@ -172,17 +172,17 @@ impl AstMeta {
         }
     }
 
-    pub fn add_op_desc(&mut self, desc: OpDesc) {
+    pub fn add_op_desc(&mut self, desc: PropOpDesc) {
         self.op_desc_by_id.insert(desc.id, desc.clone());
         let sym = self.get_or_intern(&desc.symbol);
         self.op_desc_by_symbol.insert(sym, desc);
     }
 
-    pub fn get_op_desc_with_id(&self, id: OpId) -> Option<&OpDesc> {
+    pub fn get_op_desc_with_id(&self, id: PropOpId) -> Option<&PropOpDesc> {
         self.op_desc_by_id.get(&id)
     }
 
-    pub fn get_op_desc_with_symbol(&self, symbol: Name) -> Option<&OpDesc> {
+    pub fn get_op_desc_with_symbol(&self, symbol: Name) -> Option<&PropOpDesc> {
         self.op_desc_by_symbol.get(&symbol)
     }
 
@@ -197,9 +197,28 @@ impl AstMeta {
 }
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct PredBody {
+    pub name: Name,
+    pub expr: Box<Expr>,
+}
+
+impl PredBody {
+
+    pub fn new(name: Name, expr: Expr) -> Self {
+        Self {
+            name,
+            expr: Box::new(expr),
+        }
+    }
+
+}
+
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum Expr {
     Ref(RefExpr),
     PropOp(PropOpExpr),
+    Forall(PredBody),
+    Exists(PredBody),
 }
 
 impl Expr {
@@ -212,6 +231,8 @@ impl Expr {
         match self {
             Expr::Ref(..) => 1,
             Expr::PropOp(op) => 1 + op.args.iter().map(|arg| arg.len()).sum::<u32>(),
+            Expr::Forall(q) => 1 + q.expr.len(),
+            Expr::Exists(q) => 1 + q.expr.len(),
         }
     }
 
@@ -230,7 +251,7 @@ pub struct RefExpr {
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct PropOpExpr {
-    pub op_id: OpId,
+    pub op_id: PropOpId,
     pub args: Vec<Expr>,
 }
 

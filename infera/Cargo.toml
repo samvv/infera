@@ -1,0 +1,11 @@
+[package]
+name = "infera"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+macros = ["dep:infera-proc-macro"]
+
+[dependencies]
+infera-core = { path = "../infera-core" }
+infera-proc-macro = { path = "../infera-proc-macro", optional = true }

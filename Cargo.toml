@@ -1,10 +1,7 @@
-[package]
-name = "infera"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-anyhow = "1.0.89"
-bitvec = "1.0.1"
-lazy_static = "1.5.0"
-string-interner = "0.17.0"
+[workspace]
+resolver = "2"
+members = [
+  "infera-core",
+  "infera-proc-macro",
+  "infera-cli"
+, "infera"]

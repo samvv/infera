@@ -129,10 +129,10 @@ type ParseResult<T> = std::result::Result<T, ParseError>;
 
 impl SExp {
 
-    pub fn list(elements: &[SExp]) -> Self {
+    pub fn list(elements: Vec<SExp>) -> Self {
         SExp::List(List {
             open_delim: Token::LParen(LParen::new()),
-            elements: elements.to_vec(),
+            elements,
             tail: None,
             close_delim: Token::RParen(RParen::new()),
         })
