@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, io::{Cursor, Read}};
 
-use super::{Identifier, Integer, List, SExp};
+use super::{Identifier, Integer, List, Sexp};
 
 
 pub trait Emit {
@@ -14,7 +14,7 @@ pub trait Emit {
     }
 }
 
-impl Emit for SExp {
+impl Emit for Sexp {
     fn emit<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
         match self {
             Self::Integer(int) => int.emit(w),

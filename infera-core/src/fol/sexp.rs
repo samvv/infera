@@ -1,5 +1,5 @@
 
-use crate::sexp::{List, ParseError, SExp};
+use crate::sexp::{List, ParseError, Sexp};
 
 use super::{AstMeta, Expr, PredBody, PropOpExpr, RefExpr, Theorem};
 
@@ -30,16 +30,16 @@ impl From<ParseError> for Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait FromSexp : Sized {
-    fn from_sexp(sexp: &SExp, meta: &mut AstMeta) -> Result<Self>;
+    fn from_sexp(sexp: &Sexp, meta: &mut AstMeta) -> Result<Self>;
 }
 
 pub trait ToSexp {
-    fn to_sexp(&self, meta: &AstMeta) -> SExp;
+    fn to_sexp(&self, meta: &AstMeta) -> Sexp;
 }
 
 impl FromSexp for Theorem {
 
-    fn from_sexp(expr: &SExp, meta: &mut AstMeta) -> Result<Theorem> {
+    fn from_sexp(expr: &Sexp, meta: &mut AstMeta) -> Result<Theorem> {
         let l = expr.as_list()?;
         let _kw = l.get(0)?.as_keyword("defthm")?;
         let name = l.get(1)?.as_identifier()?;
@@ -54,7 +54,7 @@ impl FromSexp for Theorem {
 
 impl FromSexp for PropOpExpr {
 
-    fn from_sexp(expr: &SExp, meta: &mut AstMeta) -> Result<PropOpExpr> {
+    fn from_sexp(expr: &Sexp, meta: &mut AstMeta) -> Result<PropOpExpr> {
         let l = expr.as_list()?;
         let kw = l.get(0)?.as_identifier()?;
         let name = meta.get_or_intern(&kw.text);
@@ -79,7 +79,7 @@ impl FromSexp for PropOpExpr {
 
 impl FromSexp for RefExpr {
 
-    fn from_sexp(sexp: &SExp, meta: &mut AstMeta) -> Result<RefExpr> {
+    fn from_sexp(sexp: &Sexp, meta: &mut AstMeta) -> Result<RefExpr> {
         let ident = sexp.as_identifier()?;
         Ok(RefExpr { name: meta.get_or_intern(&ident.text) })
     }
@@ -94,11 +94,11 @@ fn pred_body_from_list(l: &List, meta: &mut AstMeta) -> Result<PredBody> {
 
 impl FromSexp for Expr {
 
-    fn from_sexp(sexp: &SExp, meta: &mut AstMeta) -> Result<Expr> {
+    fn from_sexp(sexp: &Sexp, meta: &mut AstMeta) -> Result<Expr> {
         Ok(match sexp {
-            SExp::Integer(..) => unimplemented!(),
-            SExp::Identifier(..) => RefExpr::from_sexp(sexp, meta)?.into(),
-            SExp::List(l) if l.elements.len() > 1 => {
+            Sexp::Integer(..) => unimplemented!(),
+            Sexp::Identifier(..) => RefExpr::from_sexp(sexp, meta)?.into(),
+            Sexp::List(l) if l.elements.len() > 1 => {
                 let kw = l.get(0)?.as_identifier()?.text.as_str();
                 match kw {
                     EXISTS_NAME => Expr::Exists(pred_body_from_list(l, meta)?),
@@ -112,17 +112,17 @@ impl FromSexp for Expr {
 
 }
 
-fn pred_to_sexp(name: &str, body: &PredBody, meta: &AstMeta) -> SExp {
+fn pred_to_sexp(name: &str, body: &PredBody, meta: &AstMeta) -> Sexp {
     let mut v = Vec::new();
-    v.push(SExp::ident(name));
-    v.push(SExp::ident(meta.resolve_name(body.name).unwrap()));
+    v.push(Sexp::ident(name));
+    v.push(Sexp::ident(meta.resolve_name(body.name).unwrap()));
     v.push(body.expr.to_sexp(meta));
-    SExp::list(v)
+    Sexp::list(v)
 }
 
 impl ToSexp for Expr  {
 
-    fn to_sexp(&self, meta: &AstMeta) -> SExp {
+    fn to_sexp(&self, meta: &AstMeta) -> Sexp {
         match self {
             Self::Ref(inner) => inner.to_sexp(meta),
             Self::PropOp(inner) => inner.to_sexp(meta),
@@ -135,22 +135,22 @@ impl ToSexp for Expr  {
 
 impl ToSexp for RefExpr {
 
-    fn to_sexp(&self, meta: &AstMeta) -> SExp {
-        SExp::ident(meta.resolve_name(self.name).unwrap())
+    fn to_sexp(&self, meta: &AstMeta) -> Sexp {
+        Sexp::ident(meta.resolve_name(self.name).unwrap())
     }
 
 }
 
 impl ToSexp for PropOpExpr {
 
-    fn to_sexp(&self, meta: &AstMeta) -> SExp {
+    fn to_sexp(&self, meta: &AstMeta) -> Sexp {
         let mut v = Vec::new();
         let desc = meta.get_op_desc_with_id(self.op_id).unwrap();
-        v.push(SExp::ident(&desc.symbol));
+        v.push(Sexp::ident(&desc.symbol));
         for arg in &self.args {
             v.push(arg.to_sexp(meta));
         }
-        SExp::list(v)
+        Sexp::list(v)
     }
 
 }

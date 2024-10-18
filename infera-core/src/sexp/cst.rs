@@ -65,7 +65,7 @@ define_tokens!(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tail {
     pub dot: Dot,
-    pub expr: SExp,
+    pub expr: Sexp,
 }
 
 impl Spanned for Tail {
@@ -77,14 +77,14 @@ impl Spanned for Tail {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct List {
     pub open_delim: Token,
-    pub elements: Vec<SExp>,
+    pub elements: Vec<Sexp>,
     pub tail: Option<Box<Tail>>,
     pub close_delim: Token,
 }
 
 impl List {
 
-    pub fn get(&self, count: usize) -> ParseResult<&SExp> {
+    pub fn get(&self, count: usize) -> ParseResult<&Sexp> {
         match self.elements.iter().nth(count) {
             None => Err(ParseError::Index(count)),
             Some(element) => Ok(element),
@@ -101,7 +101,7 @@ pub enum Expected {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SExp {
+pub enum Sexp {
     List(List),
     Identifier(Identifier),
     Integer(Integer),
@@ -127,10 +127,10 @@ impl std::error::Error for ParseError {}
 
 type ParseResult<T> = std::result::Result<T, ParseError>;
 
-impl SExp {
+impl Sexp {
 
-    pub fn list(elements: Vec<SExp>) -> Self {
-        SExp::List(List {
+    pub fn list(elements: Vec<Sexp>) -> Self {
+        Sexp::List(List {
             open_delim: Token::LParen(LParen::new()),
             elements,
             tail: None,
@@ -139,26 +139,26 @@ impl SExp {
     }
 
     pub fn ident<S: Into<String>>(s: S) -> Self {
-        SExp::Identifier(Identifier::new(s.into()))
+        Sexp::Identifier(Identifier::new(s.into()))
     }
 
     pub fn as_list(&self) -> ParseResult<&List> {
         match self {
-            SExp::List(inner) => Ok(inner),
+            Sexp::List(inner) => Ok(inner),
             _ => Err(ParseError::Type(Expected::List)),
         }
     }
 
     pub fn as_identifier(&self) -> ParseResult<&Identifier> {
         match self {
-            SExp::Identifier(inner) => Ok(inner),
+            Sexp::Identifier(inner) => Ok(inner),
             _ => Err(ParseError::Type(Expected::Integer)),
         }
     }
 
     pub fn as_integer(&self) -> ParseResult<&Integer> {
         match self {
-            SExp::Integer(inner) => Ok(inner),
+            Sexp::Integer(inner) => Ok(inner),
             _ => Err(ParseError::Type(Expected::Integer)),
         }
     }
@@ -173,19 +173,19 @@ impl SExp {
 
 }
 
-impl Spanned for SExp {
+impl Spanned for Sexp {
     fn span(&self) -> Option<Span> {
         match self {
-            SExp::List(List { open_delim, close_delim, .. }) => Some(open_delim.start_offset()..close_delim.end_offset()),
-            SExp::Identifier(name) => name.span(),
-            SExp::Integer(int) => int.span(),
+            Sexp::List(List { open_delim, close_delim, .. }) => Some(open_delim.start_offset()..close_delim.end_offset()),
+            Sexp::Identifier(name) => name.span(),
+            Sexp::Integer(int) => int.span(),
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct SFile {
-    pub elements: Vec<SExp>,
+    pub elements: Vec<Sexp>,
     pub end_offset: usize,
 }
 

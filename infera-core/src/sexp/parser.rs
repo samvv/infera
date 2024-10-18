@@ -34,7 +34,7 @@ impl <C: Iterator<Item = Result<char>>> Parser<C> {
         }
     }
 
-    pub fn parse_sexp(&mut self) -> Result<SExp> {
+    pub fn parse_sexp(&mut self) -> Result<Sexp> {
         let mut stack = VecDeque::new();
 
         macro_rules! element {
@@ -56,10 +56,10 @@ impl <C: Iterator<Item = Result<char>>> Parser<C> {
                     stack.push_back((t0, new_elements, None));
                 }
                 Token::Identifier(name) => {
-                    element!(SExp::Identifier(name));
+                    element!(Sexp::Identifier(name));
                 }
                 Token::Integer(int) => {
-                    element!(SExp::Integer(int));
+                    element!(Sexp::Integer(int));
                 }
                 Token::Dot(dot) => {
                     match stack.back_mut() {
@@ -72,7 +72,7 @@ impl <C: Iterator<Item = Result<char>>> Parser<C> {
                 Token::RParen(..) => {
                     match stack.pop_back() {
                         Some((open_delim, elements, tail)) => {
-                            element!(SExp::List(List { open_delim, elements, tail, close_delim: t0 }));
+                            element!(Sexp::List(List { open_delim, elements, tail, close_delim: t0 }));
                         },
                         None => todo!(), // Error
                     }
@@ -110,13 +110,13 @@ mod test {
         let scanner = Scanner::new("(foo baz bar)".chars().map(|el| Ok(el)));
         let mut parser = Parser::new(scanner);
         let e0 = parser.parse_sexp().unwrap();
-        let SExp::List(List { open_delim, elements, tail, close_delim }) = e0 else {
+        let Sexp::List(List { open_delim, elements, tail, close_delim }) = e0 else {
             panic!("not a sexp list");
         };
         assert_eq!(open_delim, Token::LParen(LParen::with_span(0..1)));
-        assert_eq!(elements[0], SExp::Identifier(Identifier::with_span(1..4, "foo".to_string())));
-        assert_eq!(elements[1], SExp::Identifier(Identifier::with_span(5..8, "baz".to_string())));
-        assert_eq!(elements[2], SExp::Identifier(Identifier::with_span(9..12, "bar".to_string())));
+        assert_eq!(elements[0], Sexp::Identifier(Identifier::with_span(1..4, "foo".to_string())));
+        assert_eq!(elements[1], Sexp::Identifier(Identifier::with_span(5..8, "baz".to_string())));
+        assert_eq!(elements[2], Sexp::Identifier(Identifier::with_span(9..12, "bar".to_string())));
         assert_eq!(tail, None);
         assert_eq!(close_delim, Token::RParen(RParen::with_span(12..13)));
     }
@@ -126,7 +126,7 @@ mod test {
         let scanner = Scanner::new("foo".chars().map(|el| Ok(el)));
         let mut parser = Parser::new(scanner);
         let e0 = parser.parse_sexp().unwrap();
-        assert_eq!(e0, SExp::Identifier(Identifier::with_span(0..3, "foo".to_string())));
+        assert_eq!(e0, Sexp::Identifier(Identifier::with_span(0..3, "foo".to_string())));
     }
 
     #[test]
@@ -134,7 +134,7 @@ mod test {
         let scanner = Scanner::new("1234".chars().map(|el| Ok(el)));
         let mut parser = Parser::new(scanner);
         let e0 = parser.parse_sexp().unwrap();
-        assert_eq!(e0, SExp::Integer(Integer::with_span(0..4, 1234)));
+        assert_eq!(e0, Sexp::Integer(Integer::with_span(0..4, 1234)));
     }
 
 }
