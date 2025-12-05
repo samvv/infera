@@ -212,8 +212,9 @@ def enumerate_paths(prop: Prop, path: Path | None = None) -> Iterable[Path]:
         return
     assert_never(prop)
 
-def solve_many(premise: Prop, goal: Prop, rules: list[Rule]) -> list[tuple[Prop, Rule, Path]] | None:
+def solve_many(premise: Prop, goal: Prop, rules: list[Rule]) -> tuple[list[tuple[Prop, Rule, Path]] | None, int]:
 
+    count = 0
     queue = deque[Node]([ Node(premise, None, _empty_frozenlist, None) ])
 
     # def enqueue_all(prop: Prop, rule: Rule | None = None, node: Node | None = None) -> None:
@@ -224,6 +225,7 @@ def solve_many(premise: Prop, goal: Prop, rules: list[Rule]) -> list[tuple[Prop,
     visited = set[tuple[Prop, Path]]()
     while queue:
         node = queue.popleft()
+        count += 1
         if equal(node.prop, goal):
             break
         print(node.prop)
@@ -242,13 +244,13 @@ def solve_many(premise: Prop, goal: Prop, rules: list[Rule]) -> list[tuple[Prop,
                     new_prop = assign(node.prop, full_path, new_redex)
                     queue.append(Node(new_prop, rule, full_path, node))
     if node is None:
-        return None
+        return None, count
     out = []
     while node.parent is not None:
         out.append((node.prop, node.rule, node.path))
         node = node.parent
     out.reverse()
-    return out
+    return out, count
 
 if __name__ == '__main__':
     rules = [
@@ -279,7 +281,8 @@ if __name__ == '__main__':
     # goal = Not(Not(Or(Var('a'), Var('b'))))
     print(f"Premise: {premise}")
     print(f"Goal: {goal}")
-    solution = solve_many(premise, goal, rules)
+    solution, count = solve_many(premise, goal, rules)
+    print(f"Searched {count} states")
     if solution is None:
         print("Formula could not be solved.")
         sys.exit(1)
