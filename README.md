@@ -34,6 +34,7 @@ Plain and simple, `src/infera/tabulate.py` explores the entire space of
 possible truths in order to determine whether a certain logical formula is a
 tautology. The algorithm is very naive, but it does work for simple formulas.
 
+**Example:**
 ```
 A B C | (equiv (and (implies C A) (implies C B)) (implies C (and A B)))
 0 0 0 | 1
