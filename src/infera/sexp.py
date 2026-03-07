@@ -180,3 +180,7 @@ class Parser:
             elements.append(self.parse_expr())
         self._expect_token(END_OF_FILE)
         return elements
+
+
+def parse_file(text: str) -> Sequence[SExp]:
+    return Parser(tokenize(text)).parse_file()
