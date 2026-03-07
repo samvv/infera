@@ -279,6 +279,42 @@ def solve_many(premise: Prop, goal: Prop, rules: list[Rule]) -> tuple[list[tuple
     out.reverse()
     return out, count
 
+SUB_START = '\033[1m\033[92m'
+SUB_END   = '\033[0m'
+
+def highlight(prop: Prop, path: Path | None) -> str:
+    out = ''
+    if path is not None and not path:
+        out += SUB_START
+    if isinstance(prop, And):
+        left = highlight(prop.left, path[1:] if path and path[0] == AndIndex(True) else None)
+        if is_wide(prop.left):
+            left = f'({left})'
+        right = highlight(prop.right, path[1:] if path and path[0] == AndIndex(False) else None)
+        if is_wide(prop.right):
+            right = f'({right})'
+        out += f'{left} ∧ {right}'
+    elif isinstance(prop, Or):
+        left = highlight(prop.left, path[1:] if path and path[0] == AndIndex(True) else None)
+        if is_wide(prop.left):
+            left = f'({left})'
+        right = highlight(prop.right, path[1:] if path and path[0] == AndIndex(False) else None)
+        if is_wide(prop.right):
+            right = f'({right})'
+        out += f'{left} ∨ {right}'
+    elif isinstance(prop, Var):
+        out += str(prop)
+    elif isinstance(prop, Not):
+        child = highlight(prop.prop, path[1:] if path and path[0] == NotIndex() else None)
+        if is_wide(prop.prop):
+            child = f'({child})'
+        out += f'¬{child}'
+    else:
+        assert_never(prop)
+    if path is not None and not path:
+        out += SUB_END
+    return out
+
 if __name__ == '__main__':
     rules = [
         Rule(
@@ -302,8 +338,8 @@ if __name__ == '__main__':
             And(Var('a'), Var('b')),
         ),
     ]
-    premise = Not(Or(Var('d'), Var('c')))
-    goal = And(Not(Not(Not(Var('c')))), Not(Var('d')))
+    premise = And(Not(Or(Var('d'), Var('c'))), Var('k'))
+    goal = And(And(Not(Not(Not(Var('c')))), Not(Var('d'))), Var('k'))
     # premise = Or(Var('a'), Var('b'))
     # goal = Not(Not(Or(Var('a'), Var('b'))))
     print(f"Premise: {premise}")
@@ -314,5 +350,7 @@ if __name__ == '__main__':
         print("Formula could not be solved.")
         sys.exit(1)
     print("Steps:")
-    for prop, rule, path in solution:
-        print(f" - {prop} by rule {rule} in {path}")
+    last = premise
+    for i, (prop, rule, path) in enumerate(solution):
+        print(f"{i+1}. {highlight(last, path)} ⇒ {prop} by rule {SUB_START}{rule.pattern}{SUB_END} ⊢ {rule.result}")
+        last = prop
