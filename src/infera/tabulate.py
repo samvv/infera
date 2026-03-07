@@ -1,10 +1,92 @@
 #!/usr/bin/env python3
 
+import math
 from collections.abc import Generator
-from itertools import permutations
 from dataclasses import dataclass
+from typing import Sequence, assert_never
+from copy import copy
+from warnings import warn
 
-type Expr = Var | Not | And | Or | Implies | Equiv
+class Table:
+
+    def __init__(self, output: list[bool]) -> None:
+        self.output = output
+
+    @staticmethod
+    def for_n_vars(n: int) -> 'Table':
+        return Table([ False for _ in range(2 ** n) ])
+
+    def index(self, values: Sequence[bool]) -> int:
+        k = 0
+        for i, b in enumerate(values):
+            if b:
+                k += 2 ** i;
+        return k
+
+    def set(self, values: Sequence[bool], truthy: bool) -> None:
+        k = self.index(values)
+        self.output[k] = truthy;
+
+    def get(self, values: Sequence[bool]) -> bool:
+        return self.output[self.index(values)]
+
+    def var_count(self) -> int:
+        return math.ceil(math.log2(float(len(self.output))))
+
+NOT_TABLE = Table.for_n_vars(1)
+NOT_TABLE.set([False], True)
+NOT_TABLE.set([True], False)
+
+AND_TABLE = Table.for_n_vars(2)
+AND_TABLE.set([False, False], False)
+AND_TABLE.set([False, True], False)
+AND_TABLE.set([True, False], False)
+AND_TABLE.set([True, True], True)
+
+OR_TABLE = Table.for_n_vars(2)
+OR_TABLE.set([False, False], False)
+OR_TABLE.set([False, True], True)
+OR_TABLE.set([True, False], True)
+OR_TABLE.set([True, True], True)
+
+IMPLIES_TABLE = Table.for_n_vars(2)
+IMPLIES_TABLE.set([False, False], True)
+IMPLIES_TABLE.set([False, True], True)
+IMPLIES_TABLE.set([True, False], False)
+IMPLIES_TABLE.set([True, True], True)
+
+EQUIV_TABLE = Table.for_n_vars(2)
+EQUIV_TABLE.set([False, False], True)
+EQUIV_TABLE.set([False, True], False)
+EQUIV_TABLE.set([True, False], False)
+EQUIV_TABLE.set([True, True], True)
+
+XOR_TABLE = Table.for_n_vars(2)
+XOR_TABLE.set([False, False], False)
+XOR_TABLE.set([False, True], True)
+XOR_TABLE.set([True, False], True)
+XOR_TABLE.set([True, True], False)
+
+@dataclass
+class Operator:
+    name: str
+    alt_name: str
+    table: Table
+
+operators = [
+    Operator('and', '∧',  AND_TABLE),
+    Operator('or', '∨', OR_TABLE),
+    Operator('implies', '⇒', IMPLIES_TABLE),
+    Operator('xor', '⊻', XOR_TABLE),
+    Operator('equiv', '⇔', EQUIV_TABLE),
+    Operator('not', '¬', NOT_TABLE),
+]
+
+DEFAULT_ENV = {}
+for operator in operators:
+    DEFAULT_ENV[operator.name] = operator
+
+type Expr = Var | Term
 
 Env = dict[str, bool]
 
@@ -15,70 +97,50 @@ class ExprBase:
 class Var(ExprBase):
     name: str
 
-@dataclass
-class Not(ExprBase):
-    child: Expr
+    def __str__(self) -> str:
+        return self.name
 
 @dataclass
-class And(ExprBase):
-    left: Expr
-    right: Expr
+class Term(ExprBase):
+    operator: str
+    children: Sequence[Expr]
 
-@dataclass
-class Or(ExprBase):
-    left: Expr
-    right: Expr
-
-@dataclass
-class Equiv(ExprBase):
-    left: Expr
-    right: Expr
-
-@dataclass
-class Implies(ExprBase):
-    premise: Expr
-    consequent: Expr
-
-def implies(precedent: bool, consequent: bool) -> bool:
-    """
-    Python has no built-in function for calculating the logical implication so we do the next best thing.
-    """
-    return not precedent or consequent
+    def __str__(self) -> str:
+        out = '('
+        out += self.operator
+        for child in self.children:
+            out += ' ' + str(child)
+        out += ')'
+        return out
 
 def variables(expr: Expr) -> Generator[str, None, None]:
     match expr:
         case Var(name): yield name
-        case Not(child): yield from variables(child)
-        case And(left, right):
-            yield from variables(left)
-            yield from variables(right)
-        case Or(left, right):
-            yield from variables(left)
-            yield from variables(right)
-        case Equiv(left, right):
-            yield from variables(left)
-            yield from variables(right)
-        case Implies(premise, cons):
-            yield from variables(premise)
-            yield from variables(cons)
+        case Term():
+            for child in expr.children:
+                yield from variables(child)
+        case _:
+            assert_never(expr)
 
 def eval(expr: Expr, env: Env) -> bool:
     match expr:
         case Var(name): return env[name]
-        case Not(child): return eval(child, env)
-        case And(left, right): return eval(left, env) and eval(right, env)
-        case Or(left, right): return eval(left, env) or eval(right, env)
-        case Equiv(left, right): return eval(left, env) == eval(right, env)
-        case Implies(premise, consequent): return implies(eval(premise, env), eval(consequent, env))
+        case Term():
+            values = [ eval(child, env) for child in expr.children ]
+            operator = env[expr.operator]
+            assert(isinstance(operator, Operator))
+            return operator.table.get(values)
+        case _:
+            assert_never(expr)
 
-def encode(value: bool) -> str:
+def encode_truth_value(value: bool) -> str:
     return '1' if value else '0'
 
 def is_tautology(expr: Expr) -> bool:
 
     vs = list(sorted(set(variables(expr))))
 
-    env = {}
+    env = copy(DEFAULT_ENV)
     for v in vs:
         env[v] = False
 
@@ -89,7 +151,7 @@ def is_tautology(expr: Expr) -> bool:
     for i, v in enumerate(vs):
         if i > 0: out += ' '
         out += v
-    out += ' | ' + to_string(expr)
+    out += f' | {expr}'
     print(out)
 
     for i in range(2**n):
@@ -103,8 +165,8 @@ def is_tautology(expr: Expr) -> bool:
         for j, v in enumerate(vs):
             if j > 0:
                 out += ' '
-            out += encode(env[v])
-        out += ' | ' + encode(truthy)
+            out += encode_truth_value(env[v])
+        out += ' | ' + encode_truth_value(truthy)
         print(out)
 
         if not truthy:
@@ -117,37 +179,28 @@ def is_tautology(expr: Expr) -> bool:
 
     return is_taut
 
-def to_string(expr: Expr) -> str:
-    match expr:
-        case Var(name): return name
-        case Not(child): return '¬' + to_string(child)
-        case Implies(left, right): return to_string(left) + ' ⇒ ' + to_string(right)
-        case And(left, right): return to_string(left) + ' ^ ' + to_string(right)
-        case Or(left, right): return to_string(left) + ' ∨ ' + to_string(right)
-        case Equiv(left, right): return to_string(left) + ' ⟺  ' + to_string(right)
-
 if __name__ == "__main__":
-    expr = Equiv(
-        Or(
-            Implies(Var("A"), Var("C")),
-            Implies(Var("B"), Var("C")),
-        ),
-        Implies(
-            And(Var("A"), Var("B")),
+    expr = Term('equiv', [
+        Term('or', [
+            Term('implies', [Var("A"), Var("C")]),
+            Term('implies', [Var("B"), Var("C")]),
+        ]),
+        Term('implies', [
+            Term('and', [Var("A"), Var("B")]),
             Var("C")
-        )
-    )
+        ]),
+    ])
     is_tautology(expr)
 
-    expr = Equiv(
-        And(
-            Implies(Var("C"), Var("A")),
-            Implies(Var("C"), Var("B")),
-        ),
-        Implies(
+    expr = Term('equiv', [
+        Term('and', [
+            Term('implies', [Var("C"), Var("A")]),
+            Term('implies', [Var("C"), Var("B")]),
+        ]),
+        Term('implies', [
             Var("C"),
-            And(Var("A"), Var("B")),
-        )
-    )
+            Term('and', [Var("A"), Var("B")]),
+        ])
+    ])
     is_tautology(expr)
 
