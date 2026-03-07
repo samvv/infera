@@ -77,6 +77,12 @@ class Scanner:
             c0 = self._get()
             if re.match("[\n\r\t ]", c0) is not None:
                 continue
+            if c0 == ';':
+                while True:
+                    c1 = self._get()
+                    if c1 == '\n' or c1 == EOF:
+                        break
+                continue
             break
         if c0 == EOF:
             return Token(END_OF_FILE)
