@@ -31,6 +31,16 @@ class And:
         return f'{left} ∧ {right}'
 
 @dataclass(frozen=True)
+class Equiv:
+    left: Prop
+    right: Prop
+
+    def __str__(self) -> str:
+        left = f'({self.left})' if is_wide(self.left) else f'{self.left}'
+        right = f'({self.right})' if is_wide(self.right) else f'{self.right}'
+        return f'{left} ⇔ {right}'
+
+@dataclass(frozen=True)
 class Or:
     left: Prop
     right: Prop
