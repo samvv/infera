@@ -7,30 +7,57 @@ from frozenlist import FrozenList
 from typing import assert_never
 from collections import deque
 
-type Prop = And | Or | Not | Var
+type Prop = And | Or | Not | Var | Int
+
+@dataclass(frozen=True)
+class Int:
+    value: int
 
 @dataclass(frozen=True)
 class Var:
     name: str
+
+    def __str__(self) -> str:
+        return self.name
 
 @dataclass(frozen=True)
 class And:
     left: Prop
     right: Prop
 
+    def __str__(self) -> str:
+        left = f'({self.left})' if is_wide(self.left) else f'{self.left}'
+        right = f'({self.right})' if is_wide(self.right) else f'{self.right}'
+        return f'{left} ∧ {right}'
+
 @dataclass(frozen=True)
 class Or:
     left: Prop
     right: Prop
 
+    def __str__(self) -> str:
+        left = f'({self.left})' if is_wide(self.left) else f'{self.left}'
+        right = f'({self.right})' if is_wide(self.right) else f'{self.right}'
+        return f'{left} ∨ {right}'
+
 @dataclass(frozen=True)
 class Not:
     prop: Prop
+
+    def __str__(self) -> str:
+        inner = f'({self.prop})' if is_wide(self.prop) else f'{self.prop}'
+        return f'¬{inner}'
+
+def is_wide(prop: Prop) -> bool:
+    return not (isinstance(prop, Var) or isinstance(prop, Not))
 
 @dataclass(frozen=True)
 class Rule:
     pattern: Prop
     result: Prop
+
+    def __str__(self) -> str:
+        return f'{self.pattern} ⊢ {self.result}'
 
 @dataclass(frozen=True)
 class NotIndex:
