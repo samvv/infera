@@ -1,0 +1,6 @@
+# used by python
+*.egg-info/
+__pycache__/
+
+# local development files
+Makefile
