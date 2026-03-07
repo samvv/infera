@@ -5,7 +5,8 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Sequence, assert_never
 from copy import copy
-from warnings import warn
+
+from infera.sexp import SExp, Sym, List
 
 class Table:
 
@@ -86,9 +87,9 @@ DEFAULT_ENV = {}
 for operator in operators:
     DEFAULT_ENV[operator.name] = operator
 
-type Expr = Var | Term
-
 Env = dict[str, bool]
+
+type Expr = Var | Term
 
 class ExprBase:
     pass
@@ -172,35 +173,36 @@ def is_tautology(expr: Expr) -> bool:
         if not truthy:
             is_taut = False
 
-    if is_taut:
-        print('Statement is a tautology!')
-    else:
-        print('Statement is NOT a tautology!')
-
     return is_taut
 
+def parse_expr(sexp: SExp) -> Expr:
+    if isinstance(sexp, Sym):
+        return Var(sexp.name)
+    if isinstance(sexp, List):
+        assert(len(sexp.head) > 0)
+        assert(sexp.tail is None)
+        name = sexp.head[0]
+        assert(isinstance(name, Sym))
+        # TODO check arity of `name.name`
+        args = list(parse_expr(arg) for arg in sexp.head[1:])
+        return Term(name.name, args)
+    raise RuntimeError("could not parse S-expression into first-order logic expression")
+
 if __name__ == "__main__":
-    expr = Term('equiv', [
-        Term('or', [
-            Term('implies', [Var("A"), Var("C")]),
-            Term('implies', [Var("B"), Var("C")]),
-        ]),
-        Term('implies', [
-            Term('and', [Var("A"), Var("B")]),
-            Var("C")
-        ]),
-    ])
-    is_tautology(expr)
+    from infera import sexp
+    import argparse
 
-    expr = Term('equiv', [
-        Term('and', [
-            Term('implies', [Var("C"), Var("A")]),
-            Term('implies', [Var("C"), Var("B")]),
-        ]),
-        Term('implies', [
-            Var("C"),
-            Term('and', [Var("A"), Var("B")]),
-        ])
-    ])
-    is_tautology(expr)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('file', nargs=1)
+    args = parser.parse_args()
+    fname = args.file[0]
 
+    with open(fname, 'r') as f:
+        text = f.read()
+    prog = sexp.parse_file(text)
+    for element in prog:
+        expr = parse_expr(element)
+        if is_tautology(expr):
+            print('Statement is a tautology!')
+        else:
+            print('Statement is NOT a tautology!')
