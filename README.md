@@ -17,6 +17,17 @@ Probably the most interesting program in this repository is
 `src/infera/main.py`, a small term rewriter that attempt to prove a certain
 formula according to a fixed knowledge base.
 
+**Example:**
+```
+Premise: ¬(d ∨ c) ∧ k
+Goal: (¬¬¬c ∧ ¬d) ∧ k
+Searched 342 states
+Steps:
+1. ¬(d ∨ c) ∧ k ⇒ (¬d ∧ ¬c) ∧ k by rule ¬(a ∨ b) ⊢ ¬a ∧ ¬b
+2. (¬d ∧ ¬c) ∧ k ⇒ (¬c ∧ ¬d) ∧ k by rule a ∧ b ⊢ b ∧ a
+3. (¬c ∧ ¬d) ∧ k ⇒ (¬¬¬c ∧ ¬d) ∧ k by rule a ⊢ ¬¬a
+```
+
 ### A Tool for Detecting Tautologies
 
 Plain and simple, `src/infera/tabulate.py` explores the entire space of
