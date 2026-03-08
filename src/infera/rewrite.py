@@ -133,7 +133,7 @@ def solve_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
 
 @dataclass
 class Node:
-    prop: Expr
+    expr: Expr
     rule: Rule | None
     path: Path
     parent: 'Node | None'
@@ -170,14 +170,14 @@ def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple
     while queue:
         node = queue.popleft()
         count += 1
-        if equal(node.prop, goal):
+        if equal(node.expr, goal):
             break
-        print(node.prop)
-        node_key = (node.prop, node.path)
+        print(node.expr)
+        node_key = (node.expr, node.path)
         if node_key in visited:
             continue
         visited.add(node_key)
-        redex = resolve(node.prop, node.path)
+        redex = resolve(node.expr, node.path)
         for path in enumerate_paths(redex):
             redex_2 = resolve(redex, path)
             for rule in rules:
@@ -185,13 +185,13 @@ def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple
                 if new_redex is not None:
                     full_path = FrozenList([ *node.path, *path ])
                     full_path.freeze()
-                    new_prop = assign(node.prop, full_path, new_redex)
+                    new_prop = assign(node.expr, full_path, new_redex)
                     queue.append(Node(new_prop, rule, full_path, node))
     if node is None:
         return None, count
     out = []
     while node.parent is not None:
-        out.append((node.prop, node.rule, node.path))
+        out.append((node.expr, node.rule, node.path))
         node = node.parent
     out.reverse()
     return out, count
