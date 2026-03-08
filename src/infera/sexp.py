@@ -7,6 +7,10 @@ from typing import Any, NewType
 type SExp = Atom | List
 
 @dataclass
+class Keyword:
+    name: str
+
+@dataclass
 class Sym:
     name: str
 
@@ -14,7 +18,7 @@ class Sym:
 class Lit:
     value: bool | int | str
 
-type Atom = Sym | Lit
+type Atom = Sym | Lit | Keyword
 
 @dataclass
 class List:
@@ -34,6 +38,7 @@ IDENTIFIER = TokenType(5)
 DOT = TokenType(6)
 TRUE = TokenType(7)
 FALSE = TokenType(8)
+KEYWORD = TokenType(9)
 
 @dataclass
 class Token:
@@ -91,6 +96,9 @@ class Scanner:
         if c0 == ')':
             return Token(RPAREN)
         if c0 == '#':
+            if self._peek() == ':':
+                self._get()
+                return Token(KEYWORD, self._scan_identifier())
             c1 = self._scan_identifier()
             if c1 == 't':
                 return Token(TRUE)
@@ -159,6 +167,9 @@ class Parser:
             return Lit(t0.value)
         if t0.ty == STRING:
             return Lit(t0.value)
+        if t0.ty == KEYWORD:
+            print(t0.value)
+            return Keyword(t0.value)
         if t0.ty == LPAREN:
             head = []
             tail = None
