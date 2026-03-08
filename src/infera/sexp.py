@@ -199,5 +199,5 @@ class Parser:
         return elements
 
 
-def parse_file(text: str) -> Sequence[SExp]:
+def parse_file(text: str, filename: str | None = None) -> Sequence[SExp]:
     return Parser(tokenize(text)).parse_file()
