@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Sequence, assert_never
 from copy import copy
 
-from infera.sexp import SExp, Sym, List
+from infera.lang import Expr, Term, Var, parse_expr
 
 class Table:
 
@@ -89,31 +89,6 @@ for operator in operators:
 
 Env = dict[str, bool]
 
-type Expr = Var | Term
-
-class ExprBase:
-    pass
-
-@dataclass
-class Var(ExprBase):
-    name: str
-
-    def __str__(self) -> str:
-        return self.name
-
-@dataclass
-class Term(ExprBase):
-    operator: str
-    children: Sequence[Expr]
-
-    def __str__(self) -> str:
-        out = '('
-        out += self.operator
-        for child in self.children:
-            out += ' ' + str(child)
-        out += ')'
-        return out
-
 def variables(expr: Expr) -> Generator[str, None, None]:
     match expr:
         case Var(name): yield name
@@ -174,19 +149,6 @@ def is_tautology(expr: Expr) -> bool:
             is_taut = False
 
     return is_taut
-
-def parse_expr(sexp: SExp) -> Expr:
-    if isinstance(sexp, Sym):
-        return Var(sexp.name)
-    if isinstance(sexp, List):
-        assert(len(sexp.head) > 0)
-        assert(sexp.tail is None)
-        name = sexp.head[0]
-        assert(isinstance(name, Sym))
-        # TODO check arity of `name.name`
-        args = list(parse_expr(arg) for arg in sexp.head[1:])
-        return Term(name.name, args)
-    raise RuntimeError("could not parse S-expression into first-order logic expression")
 
 if __name__ == "__main__":
     from infera import sexp
