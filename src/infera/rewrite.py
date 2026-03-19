@@ -185,7 +185,7 @@ class SizeHeuristic(Heuristic):
     def rate(self, curr: Expr, goal: Expr) -> float:
         return size(curr)
 
-def solve_many(
+def search(
     premise: Expr,
     goal: Expr,
     rules: list[Rule],
@@ -268,7 +268,7 @@ def rewrite(premise: Expr, goal: Expr, rules: list[Rule]) -> bool:
     print() # Clearing space for progress
     def progress(count: int) -> None:
         print(f"\r\u001b[2KIteration {count}", end='', file=sys.stderr)
-    solution, count = solve_many(
+    solution, count = search(
         premise,
         goal,
         rules,
