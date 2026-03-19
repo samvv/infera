@@ -2,9 +2,8 @@
 
 from abc import abstractmethod
 import abc
-import sys
 from queue import PriorityQueue
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from frozenlist import FrozenList
 from typing import Sequence, assert_never, override
@@ -127,7 +126,7 @@ def match_all(prop: Expr, rules: list[Rule]) -> Iterator[tuple[Rule, Expr]]:
         if result is not None:
             yield rule, result
 
-def solve_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
+def search_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
     for rule, result in match_all(premise, rules):
         try:
             unify(result, goal)
