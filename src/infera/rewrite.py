@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+from queue import PriorityQueue
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from frozenlist import FrozenList
 from typing import assert_never
 from collections import deque
@@ -131,12 +132,13 @@ def solve_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
             continue
         return rule
 
-@dataclass
+@dataclass(order=True)
 class Node:
-    expr: Expr
-    rule: Rule | None
-    path: Path
-    parent: 'Node | None'
+    score: int
+    expr: Expr = field(compare=False)
+    rule: Rule | None = field(compare=False)
+    path: Path = field(compare=False)
+    parent: 'Node | None' = field(compare=False)
 
 _empty_frozenlist = FrozenList()
 _empty_frozenlist.freeze()
@@ -156,10 +158,20 @@ def enumerate_paths(prop: Expr, path: Path | None = None) -> Iterable[Path]:
         return
     assert_never(prop)
 
+def size(expr: Expr) -> int:
+    match expr:
+        case Var(): return 1
+        case Term(): return 1 + sum(size(child) for child in expr.children)
+        case _: assert_never(expr)
+
+def score(curr: Expr, goal: Expr) -> int:
+    return size(curr)
+
 def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple[Expr, Rule, Path]] | None, int]:
 
     count = 0
-    queue = deque[Node]([ Node(premise, None, _empty_frozenlist, None) ])
+    queue = PriorityQueue()
+    queue.put(Node(0, premise, None, _empty_frozenlist, None))
 
     # def enqueue_all(prop: Prop, rule: Rule | None = None, node: Node | None = None) -> None:
     #     for path in enumerate_paths(prop):
@@ -168,7 +180,7 @@ def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple
     node = None
     visited = set[tuple[Expr, Path]]()
     while queue:
-        node = queue.popleft()
+        node = queue.get()
         count += 1
         if equal(node.expr, goal):
             break
@@ -186,7 +198,7 @@ def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple
                     full_path = FrozenList([ *node.path, *path ])
                     full_path.freeze()
                     new_prop = assign(node.expr, full_path, new_redex)
-                    queue.append(Node(new_prop, rule, full_path, node))
+                    queue.put(Node(score(new_prop, goal), new_prop, rule, full_path, node))
     if node is None:
         return None, count
     out = []
