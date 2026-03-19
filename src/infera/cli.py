@@ -1,22 +1,22 @@
 
 import argparse
 from collections.abc import Sequence
-from os import wait
 
 from infera.rewrite import Rule, rewrite
 from infera.tabulate import is_tautology
 from infera.lang import Expr, Term, TheoremDef, parse_stmt
 from infera import sexp
+from infera.util import Progress
 
-def prove(expr: Expr, rules: list[Rule]) -> bool:
+def prove(expr: Expr, rules: list[Rule], progress: Progress) -> bool:
     match expr:
         case Term(operator='implies'):
             premise = expr.children[0]
             goal = expr.children[1]
-            return rewrite(premise, goal, rules)
+            return rewrite(premise, goal, rules, progress)
         case Term(operator='and'):
             for child in expr.children:
-                if not prove(child, rules):
+                if not prove(child, rules, progress):
                     return False
             return True
         case Term(operator='equiv'):
@@ -24,7 +24,7 @@ def prove(expr: Expr, rules: list[Rule]) -> bool:
             # FIXME might be better to rewrite to (a => b) ^ (b => a) and then solve
             left = expr.children[0]
             right = expr.children[1]
-            return rewrite(left, right, rules) and rewrite(right, left, rules)
+            return rewrite(left, right, rules, progress) and rewrite(right, left, rules, progress)
         case _:
             raise RuntimeError(f"do not yet know how to prove {expr}")
 
@@ -50,6 +50,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument('file', nargs=1, help='The file to verfiy')
     args = parser.parse_args(argv)
     fname = args.file[0]
+    progress = Progress()
 
     with open(fname, 'r') as f:
         text = f.read()
@@ -63,7 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if stmt.tactic == 'tabulate':
                 proven = is_tautology(stmt.expr)
             elif stmt.tactic == 'rewrite':
-                proven = prove(stmt.expr, rules)
+                proven = prove(stmt.expr, rules, progress)
             else:
                 raise RuntimeError(f"unknown tactic '{stmt.tactic}'")
 

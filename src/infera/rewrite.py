@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
-from abc import ABC, ABCMeta, abstractmethod
+from abc import abstractmethod
 import abc
 import sys
 from queue import PriorityQueue
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from warnings import warn
 from frozenlist import FrozenList
 from typing import Sequence, assert_never, override
-from collections import deque
 
-from infera.lang import Expr, Term, Var, is_wide
+from infera.util import Progress
+from infera.lang import Expr, Term, Var
 
 @dataclass(frozen=True)
 class Rule:
@@ -190,7 +189,7 @@ def search(
     goal: Expr,
     rules: list[Rule],
     heuristics: Sequence[tuple[float, Heuristic]] | None = None,
-    progress: Callable[[int], None] = noop,
+    progress: Progress | None = None,
     limit: int = 0
 ) -> tuple[list[tuple[Expr, Rule, Path]] | None, int]:
 
@@ -212,13 +211,14 @@ def search(
     visited = set[tuple[Expr, Path]]()
     while queue:
         node = queue.get()
-        progress(count)
+        if progress is not None:
+            progress.status(f"Search iteration {count}")
         if limit > 0 and limit == count:
             raise RuntimeError(f"limit of {limit} iterations reached")
         count += 1
         if equal(node.expr, goal):
             break
-        print(node.expr)
+        print(node.expr, file=progress)
         node_key = (node.expr, node.path)
         if node_key in visited:
             continue
@@ -262,12 +262,14 @@ def highlight(prop: Expr, path: Path | None) -> str:
         out += SUB_END
     return out
 
-def rewrite(premise: Expr, goal: Expr, rules: list[Rule]) -> bool:
-    print(f"Premise: {premise}")
-    print(f"Goal: {goal}")
-    print() # Clearing space for progress
-    def progress(count: int) -> None:
-        print(f"\r\u001b[2KIteration {count}", end='', file=sys.stderr)
+def rewrite(
+    premise: Expr,
+    goal: Expr,
+    rules: list[Rule],
+    progress: Progress
+) -> bool:
+    print(f"Premise: {premise}", file=progress)
+    print(f"Goal: {goal}", file=progress)
     solution, count = search(
         premise,
         goal,
@@ -275,14 +277,14 @@ def rewrite(premise: Expr, goal: Expr, rules: list[Rule]) -> bool:
         progress=progress,
         heuristics=[ (1.0, SizeHeuristic()) ]
     )
-    print(f"Searched {count} states")
+    print(f"Searched {count} states", file=progress)
     if solution is None:
-        print("Formula could not be solved.")
+        print("Formula could not be solved.", file=progress)
         return False
-    print("Steps:")
+    print("Steps:", file=progress)
     last = premise
     for i, (prop, rule, path) in enumerate(solution):
-        print(f"{i+1}. {highlight(last, path)} ⇒ {prop} by rule {SUB_START}{rule.pattern}{SUB_END} ⊢ {rule.result}")
+        print(f"{i+1}. {highlight(last, path)} ⇒ {prop} by rule {SUB_START}{rule.pattern}{SUB_END} ⊢ {rule.result}", file=progress)
         last = prop
     return True
 
