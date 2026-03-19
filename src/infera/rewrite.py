@@ -218,11 +218,11 @@ def search(
         count += 1
         if equal(node.expr, goal):
             break
-        print(node.expr, file=progress)
         node_key = (node.expr, node.path)
         if node_key in visited:
             continue
         visited.add(node_key)
+        print(node.expr, file=progress)
         redex = resolve(node.expr, node.path)
         for path in enumerate_paths(redex):
             redex_2 = resolve(redex, path)
