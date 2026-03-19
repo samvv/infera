@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 
+from abc import ABC, ABCMeta, abstractmethod
+import abc
+import sys
 from queue import PriorityQueue
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
+from warnings import warn
 from frozenlist import FrozenList
-from typing import assert_never
+from typing import Sequence, assert_never, override
 from collections import deque
 
-from infera.lang import Expr, Term, Var
+from infera.lang import Expr, Term, Var, is_wide
 
 @dataclass(frozen=True)
 class Rule:
@@ -134,7 +138,7 @@ def solve_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
 
 @dataclass(order=True)
 class Node:
-    score: int
+    score: float
     expr: Expr = field(compare=False)
     rule: Rule | None = field(compare=False)
     path: Path = field(compare=False)
@@ -167,10 +171,37 @@ def size(expr: Expr) -> int:
 def score(curr: Expr, goal: Expr) -> int:
     return size(curr)
 
-def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple[Expr, Rule, Path]] | None, int]:
+def noop(_: int) -> None: pass
+
+class Heuristic(abc.ABC):
+
+    @abstractmethod
+    def rate(self, curr: Expr, goal: Expr) -> float:
+        raise NotImplementedError() 
+
+class SizeHeuristic(Heuristic):
+
+    @override
+    def rate(self, curr: Expr, goal: Expr) -> float:
+        return size(curr)
+
+def solve_many(
+    premise: Expr,
+    goal: Expr,
+    rules: list[Rule],
+    heuristics: Sequence[tuple[float, Heuristic]] | None = None,
+    progress: Callable[[int], None] = noop,
+    limit: int = 0
+) -> tuple[list[tuple[Expr, Rule, Path]] | None, int]:
+
+    if heuristics is None:
+        heuristics = []
+
+    def score(x: Expr) -> float:
+        return sum(w * h.rate(x, goal) for w, h in heuristics)
 
     count = 0
-    queue = PriorityQueue()
+    queue = PriorityQueue[Node]()
     queue.put(Node(0, premise, None, _empty_frozenlist, None))
 
     # def enqueue_all(prop: Prop, rule: Rule | None = None, node: Node | None = None) -> None:
@@ -181,6 +212,9 @@ def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple
     visited = set[tuple[Expr, Path]]()
     while queue:
         node = queue.get()
+        progress(count)
+        if limit > 0 and limit == count:
+            raise RuntimeError(f"limit of {limit} iterations reached")
         count += 1
         if equal(node.expr, goal):
             break
@@ -198,7 +232,7 @@ def solve_many(premise: Expr, goal: Expr, rules: list[Rule]) -> tuple[list[tuple
                     full_path = FrozenList([ *node.path, *path ])
                     full_path.freeze()
                     new_prop = assign(node.expr, full_path, new_redex)
-                    queue.put(Node(score(new_prop, goal), new_prop, rule, full_path, node))
+                    queue.put(Node(score(new_prop), new_prop, rule, full_path, node))
     if node is None:
         return None, count
     out = []
@@ -215,29 +249,13 @@ def highlight(prop: Expr, path: Path | None) -> str:
     out = ''
     if path is not None and not path:
         out += SUB_START
-    if isinstance(prop, And):
-        left = highlight(prop.left, path[1:] if path and path[0] == AndIndex(True) else None)
-        if is_wide(prop.left):
-            left = f'({left})'
-        right = highlight(prop.right, path[1:] if path and path[0] == AndIndex(False) else None)
-        if is_wide(prop.right):
-            right = f'({right})'
-        out += f'{left} ∧ {right}'
-    elif isinstance(prop, Or):
-        left = highlight(prop.left, path[1:] if path and path[0] == AndIndex(True) else None)
-        if is_wide(prop.left):
-            left = f'({left})'
-        right = highlight(prop.right, path[1:] if path and path[0] == AndIndex(False) else None)
-        if is_wide(prop.right):
-            right = f'({right})'
-        out += f'{left} ∨ {right}'
+    if isinstance(prop, Term):
+        out += '(' + prop.operator
+        for i, child in enumerate(prop.children):
+            out += ' ' + highlight(child, path[1:] if path and path[0] == TermChildIndex(i) else None)
+        out += ')'
     elif isinstance(prop, Var):
         out += str(prop)
-    elif isinstance(prop, Not):
-        child = highlight(prop.prop, path[1:] if path and path[0] == NotIndex() else None)
-        if is_wide(prop.prop):
-            child = f'({child})'
-        out += f'¬{child}'
     else:
         assert_never(prop)
     if path is not None and not path:
@@ -247,7 +265,16 @@ def highlight(prop: Expr, path: Path | None) -> str:
 def rewrite(premise: Expr, goal: Expr, rules: list[Rule]) -> bool:
     print(f"Premise: {premise}")
     print(f"Goal: {goal}")
-    solution, count = solve_many(premise, goal, rules)
+    print() # Clearing space for progress
+    def progress(count: int) -> None:
+        print(f"\r\u001b[2KIteration {count}", end='', file=sys.stderr)
+    solution, count = solve_many(
+        premise,
+        goal,
+        rules,
+        progress=progress,
+        heuristics=[ (1.0, SizeHeuristic()) ]
+    )
     print(f"Searched {count} states")
     if solution is None:
         print("Formula could not be solved.")
