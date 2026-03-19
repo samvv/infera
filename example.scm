@@ -9,7 +9,7 @@
   #:tactic tabulate)
 
 ; De Morgan's law for OR
-(defthm de-morgan-and
+(defthm de-morgan-or
   (equiv
     (not (and a b))
     (or (not a) (not b)))
