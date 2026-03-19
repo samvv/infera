@@ -56,6 +56,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         text = f.read()
     els = sexp.parse_file(text, filename=fname)
 
+    wrong = 0
+    right = 0
     rules = []
     for el in els:
         stmt = parse_stmt(el)
@@ -70,8 +72,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             if proven:
                 extend(rules, stmt.expr, stmt.name)
-                print(f'✅️ {stmt.name or stmt.expr}')
+                right += 1
+                print(f'✅️ {stmt.name or stmt.expr}', file=progress)
             else:
-                print(f'❌️ {stmt.name or stmt.expr}')
+                wrong += 1
+                print(f'❌️ {stmt.name or stmt.expr}', file=progress)
 
+    progress.finish(f"All theorems inspected. {wrong} pending and {right} proven.")
     return 0
