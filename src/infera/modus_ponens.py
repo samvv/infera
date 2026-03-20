@@ -261,7 +261,7 @@ def highlight(prop: Expr, path: Path | None) -> str:
         out += SUB_END
     return out
 
-def rewrite(
+def modus_ponens(
     premise: Expr,
     goal: Expr,
     rules: list[Rule],
