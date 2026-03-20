@@ -36,6 +36,13 @@
     (or b a))
   #:tactic tabulate)
 
+; Contraposition
+(defthm contraposition
+  (equiv
+    (implies p q)
+    (implies (not q) (not p)))
+  #:tactic tabulate)
+
 ; If either a implies c or b implies c (or both), then a and b, taken together, surely must imply c.
 ; If we can infer both a and b from c, we can either imply c from a or c from b (or both).
 (defthm disj-implies-conj
