@@ -2,7 +2,7 @@
 import argparse
 from collections.abc import Sequence
 
-from infera.modus_ponens import Rule, modus_ponens
+from infera.rewrite import Rule, rewrite
 from infera.tabulate import is_tautology
 from infera.lang import Expr, Term, TheoremDef, parse_stmt
 from infera import sexp
@@ -13,7 +13,7 @@ def prove(expr: Expr, rules: list[Rule], progress: Progress) -> bool:
         case Term(operator='implies'):
             premise = expr.children[0]
             goal = expr.children[1]
-            return modus_ponens(premise, goal, rules, progress)
+            return rewrite(premise, goal, rules, progress)
         case Term(operator='and'):
             for child in expr.children:
                 if not prove(child, rules, progress):
@@ -24,7 +24,7 @@ def prove(expr: Expr, rules: list[Rule], progress: Progress) -> bool:
             # FIXME might be better to rewrite to (a => b) ^ (b => a) and then solve
             left = expr.children[0]
             right = expr.children[1]
-            return modus_ponens(left, right, rules, progress) and modus_ponens(right, left, rules, progress)
+            return rewrite(left, right, rules, progress) and rewrite(right, left, rules, progress)
         case _:
             raise RuntimeError(f"do not yet know how to prove {expr}")
 
