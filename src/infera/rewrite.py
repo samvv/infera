@@ -183,6 +183,11 @@ class SizeHeuristic(Heuristic):
     def rate(self, curr: Expr, goal: Expr) -> float:
         return size(curr)
 
+class MaxStepsExceededError(RuntimeError):
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(f"limit of {limit} iterations reached")
+
 def search(
     premise: Expr,
     goal: Expr,
@@ -213,7 +218,7 @@ def search(
         if progress is not None:
             progress.status(f"Search iteration {count}")
         if limit > 0 and limit == count:
-            raise RuntimeError(f"limit of {limit} iterations reached")
+            raise MaxStepsExceededError(limit=limit)
         count += 1
         if equal(node.expr, goal):
             break
