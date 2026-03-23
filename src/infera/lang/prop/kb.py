@@ -1,12 +1,60 @@
 
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import override
+from typing import assert_never, override
 
 from infera.abstract import AbstractKB, AbstractNode
 
-from .node import PropTerm, Prop
+from .node import PropTerm, Prop, PropVar
+
+
+def symbols(prop: Prop) -> Iterable[str]:
+    match prop:
+        case PropVar():
+            yield '*'
+        case PropTerm():
+            yield prop.operator
+            for child in prop.children:
+                yield from symbols(child)
+        case _:
+            assert_never(prop)
+
+
+class DNode[T]:
+
+    def __init__(self) -> None:
+        self.children = dict[str, DNode]()
+        self.value: list[T] = []
+
+
+class DTree[T]:
+
+    def __init__(self) -> None:
+        self.root = None
+
+    def add(self, expr: Prop, value: T) -> None:
+        if not self.root:
+            self.root = DNode()
+        node = self.root
+        for symbol in symbols(expr):
+            if symbol in node.children:
+                node = node.children[symbol]
+            else:
+                next = DNode()
+                node.children[symbol] = next
+                node = next
+        node.value.append(value)
+
+    def lookup(self, pattern: Prop) -> Sequence[Rule]:
+        if self.root is None:
+            return []
+        node = self.root
+        for symbol in symbols(pattern):
+            if symbol not in node.children:
+                return []
+            node = node.children[symbol]
+        return node.value
 
 
 @dataclass(frozen=True)
@@ -16,17 +64,19 @@ class Rule:
     name: str | None = None
 
     def __str__(self) -> str:
-        return f'{self.pattern} ⊢ {self.result}'
+        return self.name or f'{self.pattern} ⊢ {self.result}'
 
 
 class PropKB(AbstractKB):
 
     def __init__(self) -> None:
+        self._matcher = DTree()
         self._rules = list[Rule]()
         self._rules_by_name = dict[str, Rule]()
 
     def _add_rule(self, rule: Rule) -> None:
         self._rules.append(rule)
+        self._matcher.add(rule.pattern, rule)
         if rule.name is not None:
             self._rules_by_name[rule.name] = rule
 
@@ -48,10 +98,18 @@ class PropKB(AbstractKB):
            case _:
                raise RuntimeError(f"did not yet know how to add proven {node} to the KB")
 
+    def match_rules(self, prop: Prop) -> Iterable[Rule]:
+        print("SEEK")
+        print(prop)
+        print("FIND")
+        for r in self._matcher.lookup(prop):
+            print(str(r))
+        return self._matcher.lookup(prop)
+
     def count_rules(self) -> int:
         return len(self._rules)
 
-    def get_rule(self, name: str) -> Rule | None:
+    def get_rule_by_name(self, name: str) -> Rule | None:
         return self._rules_by_name.get(name)
 
     @property

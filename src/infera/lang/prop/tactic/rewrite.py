@@ -99,15 +99,15 @@ def match(prop: Prop, rule: Rule) -> Prop | None:
     return substitute(rule.result, sub)
 
 
-def match_all(prop: Prop, rules: list[Rule]) -> Iterator[tuple[Rule, Prop]]:
-    for rule in rules:
+def match_all(prop: Prop, kb: PropKB) -> Iterator[tuple[Rule, Prop]]:
+    for rule in kb.match_rules(prop):
         result = match(prop, rule)
         if result is not None:
             yield rule, result
 
 
-def search_one(premise: Prop, goal: Prop, rules: list[Rule]) -> Rule | None:
-    for rule, result in match_all(premise, rules):
+def search_one(premise: Prop, goal: Prop, kb: PropKB) -> Rule | None:
+    for rule, result in match_all(premise, kb):
         try:
             unify(result, goal)
         except UnifyError:
@@ -223,7 +223,7 @@ def search(
         redex = resolve(node.expr, node.path)
         for path in enumerate_paths(redex):
             redex_2 = resolve(redex, path)
-            for rule in kb.rules:
+            for rule in kb.match_rules(redex_2):
                 new_redex = match(redex_2, rule)
                 if new_redex is not None:
                     full_path = FrozenList([ *node.path, *path ])
