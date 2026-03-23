@@ -1,12 +1,14 @@
 
 
 from dataclasses import dataclass
+from typing import Any, TypeGuard
 from frozenlist import FrozenList
 
+from infera.abstract import AbstractNode
 from infera.sexp import List, SExp, Sym
 
 
-class PropBase:
+class PropBase(AbstractNode):
     pass
 
 
@@ -33,6 +35,7 @@ class PropTerm(PropBase):
     operator: str
     children: FrozenList[Prop]
 
+
     @property
     def arity(self) -> int:
         return len(self.children)
@@ -47,6 +50,10 @@ class PropTerm(PropBase):
 
 
 type Prop = PropVar | PropTerm
+
+
+def is_prop(value: Any) -> TypeGuard[Prop]:
+    return isinstance(value, PropVar) or isinstance(value, PropTerm)
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,7 @@ class TermChildIndex:
 
     def __str__(self) -> str:
         return f'.{self.offset}'
+
 
 type Index = TermChildIndex
 

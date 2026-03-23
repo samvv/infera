@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import override
 
-from infera.abstract import AbstractKB
+from infera.abstract import AbstractKB, AbstractNode
 
 from .node import PropTerm, Prop
 
@@ -31,7 +31,7 @@ class PropKB(AbstractKB):
             self._rules_by_name[rule.name] = rule
 
     @override
-    def add(self, node: Prop, name: str | None = None) -> None:
+    def add(self, node: AbstractNode, name: str | None = None) -> None:
         match node:
            case PropTerm(operator='implies'):
                premise = node.children[0]

@@ -3,10 +3,13 @@ from dataclasses import dataclass
 from frozenlist import FrozenList
 
 
+from infera.abstract import AbstractNode
+
+
 type Pred = PredTerm | PredFormula
 
 
-class PredBase:
+class PredBase(AbstractNode):
     pass
 
 
