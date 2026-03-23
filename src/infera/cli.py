@@ -2,49 +2,10 @@
 import argparse
 from collections.abc import Sequence
 
-from infera.lang.prop.rewrite import Rule, rewrite
-from infera.lang.prop.tabulate import is_tautology
-from infera.lang.prop import Prop, PTerm
+from infera.lang.prop import PropKB, prove_by_rewriting, prove_by_tabulation
 from infera.lang import TheoremDef, parse_stmt
 from infera import sexp
 from infera.util import Progress
-
-def prove(expr: Prop, rules: list[Rule], progress: Progress) -> bool:
-    match expr:
-        case PTerm(operator='implies'):
-            premise = expr.children[0]
-            goal = expr.children[1]
-            return rewrite(premise, goal, rules, progress)
-        case PTerm(operator='and'):
-            for child in expr.children:
-                if not prove(child, rules, progress):
-                    return False
-            return True
-        case PTerm(operator='equiv'):
-            # FIXME solve using equivalence substitutions
-            # FIXME might be better to rewrite to (a => b) ^ (b => a) and then solve
-            left = expr.children[0]
-            right = expr.children[1]
-            return rewrite(left, right, rules, progress) and rewrite(right, left, rules, progress)
-        case _:
-            raise RuntimeError(f"do not yet know how to prove {expr}")
-
-def extend(rules: list[Rule], expr: Prop, name: str) -> None:
-    match expr:
-        case PTerm(operator='implies'):
-            premise = expr.children[0]
-            goal = expr.children[1]
-            rules.append(Rule(premise, goal, name))
-        case PTerm(operator='equiv'):
-            left = expr.children[0]
-            right = expr.children[1]
-            rules.append(Rule(left, right, name))
-            rules.append(Rule(right, left, name))
-        case PTerm(operator='and'):
-            for i, child in enumerate(expr.children):
-                extend(rules, child, f'{name}_{i}')
-        case _:
-            raise RuntimeError(f"did not yet know how to add proven {expr} to the KB")
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
@@ -59,25 +20,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     wrong = 0
     right = 0
-    rules = []
+    kb = PropKB()
     for el in els:
         stmt = parse_stmt(el)
         if isinstance(stmt, TheoremDef):
 
+            proven = None
             if stmt.tactic == 'tabulate':
-                proven = is_tautology(stmt.expr)
+                proven = prove_by_tabulation(stmt.expr, kb, progress)
             elif stmt.tactic == 'rewrite':
-                proven = prove(stmt.expr, rules, progress)
+                proven = prove_by_rewriting(stmt.expr, kb, progress)
             else:
                 raise RuntimeError(f"unknown tactic '{stmt.tactic}'")
 
-            if proven:
-                extend(rules, stmt.expr, stmt.name)
-                right += 1
-                print(f'✅️ {stmt.name or stmt.expr}', file=progress)
-            else:
+            if proven is None:
                 wrong += 1
                 print(f'❌️ {stmt.name or stmt.expr}', file=progress)
+            else:
+                kb.add(stmt.expr, stmt.name)
+                right += 1
+                print(f'✅️ {stmt.name or stmt.expr}', file=progress)
 
     progress.finish(f"All theorems inspected. {wrong} pending and {right} proven.")
     return 0

@@ -9,44 +9,18 @@ from frozenlist import FrozenList
 from typing import Sequence, assert_never, override
 
 from infera.util import Progress
-from .node import Prop, PTerm, PVar
+from ..kb import PropKB, Rule
+from ..node import Index, Prop, PropTerm, PropVar, TermChildIndex
 
-@dataclass(frozen=True)
-class Rule:
-    pattern: Prop
-    result: Prop
-    name: str | None = None
-
-    def __str__(self) -> str:
-        return f'{self.pattern} ⊢ {self.result}'
-
-@dataclass(frozen=True)
-class TermChildIndex:
-    offset: int
-
-    def get(self, expr: Prop) -> Prop:
-        assert(isinstance(expr, PTerm))
-        return expr.children[self.offset]
-
-    def set(self, expr: Prop, new_expr: Prop) -> Prop:
-        assert(isinstance(expr, PTerm))
-        new_children = list(expr.children)
-        new_children[self.offset] = new_expr
-        new_children = FrozenList(new_children)
-        new_children.freeze()
-        return PTerm(expr.operator, new_children)
-
-    def __str__(self) -> str:
-        return f'.{self.offset}'
-
-type Index = TermChildIndex
 
 type Path = FrozenList[Index]
+
 
 def resolve(prop: Prop, path: Path) -> Prop:
     for index in path:
         prop = index.get(prop)
     return prop
+
 
 def assign(root: Prop, path: Path, replace: Prop) -> Prop:
     def visit(prop: Prop, i: int) -> Prop:
@@ -67,40 +41,43 @@ def assign(root: Prop, path: Path, replace: Prop) -> Prop:
     #     elif isinstance(index, AndIndex):
     # setter(replace)
 
+
 VarSub = dict[str, Prop]
 
-Env = dict[str, Prop]
 
 class UnifyError(RuntimeError):
     pass
 
+
 def unify(left: Prop, right: Prop) -> VarSub:
     out = VarSub()
-    if isinstance(left, PVar):
+    if isinstance(left, PropVar):
         out[left.name] = right
-    elif isinstance(right, PVar):
+    elif isinstance(right, PropVar):
         out[right.name] = left
-    elif isinstance(left, PTerm) and isinstance(right, PTerm) and left.operator == right.operator:
+    elif isinstance(left, PropTerm) and isinstance(right, PropTerm) and left.operator == right.operator:
         for a, b in zip(left.children, right.children):
             out.update(unify(a, b))
     else:
         raise UnifyError()
     return out
 
+
 def equal(a: Prop, b: Prop) -> bool:
-    if isinstance(a, PVar) and isinstance(b, PVar):
+    if isinstance(a, PropVar) and isinstance(b, PropVar):
         return a.name == b.name
-    if isinstance(a, PTerm) and isinstance(b, PTerm) and a.operator == b.operator:
+    if isinstance(a, PropTerm) and isinstance(b, PropTerm) and a.operator == b.operator:
         for l, r in zip(a.children, b.children):
             if not equal(l, r):
                 return False
         return True
     return False
 
+
 def substitute(expr: Prop, sub: VarSub) -> Prop:
-    if isinstance(expr, PVar):
+    if isinstance(expr, PropVar):
         return sub.get(expr.name, expr)
-    if isinstance(expr, PTerm):
+    if isinstance(expr, PropTerm):
         changed = False
         new_children = []
         for child in expr.children:
@@ -110,8 +87,9 @@ def substitute(expr: Prop, sub: VarSub) -> Prop:
             new_children.append(new_child)
         new_children = FrozenList(new_children)
         new_children.freeze()
-        return PTerm(expr.operator, new_children) if changed else expr
+        return PropTerm(expr.operator, new_children) if changed else expr
     assert_never(expr)
+
 
 def match(prop: Prop, rule: Rule) -> Prop | None:
     try:
@@ -120,11 +98,13 @@ def match(prop: Prop, rule: Rule) -> Prop | None:
         return None
     return substitute(rule.result, sub)
 
+
 def match_all(prop: Prop, rules: list[Rule]) -> Iterator[tuple[Rule, Prop]]:
     for rule in rules:
         result = match(prop, rule)
         if result is not None:
             yield rule, result
+
 
 def search_one(premise: Prop, goal: Prop, rules: list[Rule]) -> Rule | None:
     for rule, result in match_all(premise, rules):
@@ -134,6 +114,7 @@ def search_one(premise: Prop, goal: Prop, rules: list[Rule]) -> Rule | None:
             continue
         return rule
 
+
 @dataclass(order=True)
 class Node:
     score: float
@@ -142,16 +123,18 @@ class Node:
     path: Path = field(compare=False)
     parent: 'Node | None' = field(compare=False)
 
+
 _empty_frozenlist = FrozenList()
 _empty_frozenlist.freeze()
+
 
 def enumerate_paths(prop: Prop, path: Path | None = None) -> Iterable[Path]:
     yield _empty_frozenlist
     if path is None:
         path = FrozenList()
-    if isinstance(prop, PVar):
+    if isinstance(prop, PropVar):
         return
-    if isinstance(prop, PTerm):
+    if isinstance(prop, PropTerm):
         for i, child in enumerate(prop.children):
             child_path = FrozenList([ *path, TermChildIndex(i) ])
             child_path.freeze()
@@ -160,16 +143,20 @@ def enumerate_paths(prop: Prop, path: Path | None = None) -> Iterable[Path]:
         return
     assert_never(prop)
 
+
 def size(expr: Prop) -> int:
     match expr:
-        case PVar(): return 1
-        case PTerm(): return 1 + sum(size(child) for child in expr.children)
+        case PropVar(): return 1
+        case PropTerm(): return 1 + sum(size(child) for child in expr.children)
         case _: assert_never(expr)
+
 
 def score(curr: Prop, goal: Prop) -> int:
     return size(curr)
 
+
 def noop(_: int) -> None: pass
+
 
 class Heuristic(abc.ABC):
 
@@ -177,25 +164,31 @@ class Heuristic(abc.ABC):
     def rate(self, curr: Prop, goal: Prop) -> float:
         raise NotImplementedError() 
 
+
 class SizeHeuristic(Heuristic):
 
     @override
     def rate(self, curr: Prop, goal: Prop) -> float:
         return size(curr)
 
+
 class MaxStepsExceededError(RuntimeError):
 
     def __init__(self, limit: int) -> None:
         super().__init__(f"limit of {limit} iterations reached")
 
+
+type Step = tuple[Prop, Rule, Path]
+
+
 def search(
     premise: Prop,
     goal: Prop,
-    rules: list[Rule],
+    kb: PropKB,
     heuristics: Sequence[tuple[float, Heuristic]] | None = None,
     progress: Progress | None = None,
     limit: int = 0
-) -> tuple[list[tuple[Prop, Rule, Path]] | None, int]:
+) -> tuple[list[Step] | None, int]:
 
     if heuristics is None:
         heuristics = []
@@ -230,7 +223,7 @@ def search(
         redex = resolve(node.expr, node.path)
         for path in enumerate_paths(redex):
             redex_2 = resolve(redex, path)
-            for rule in rules:
+            for rule in kb.rules:
                 new_redex = match(redex_2, rule)
                 if new_redex is not None:
                     full_path = FrozenList([ *node.path, *path ])
@@ -246,19 +239,21 @@ def search(
     out.reverse()
     return out, count
 
+
 SUB_START = '\033[1m\033[92m'
 SUB_END   = '\033[0m'
+
 
 def highlight(prop: Prop, path: Path | None) -> str:
     out = ''
     if path is not None and not path:
         out += SUB_START
-    if isinstance(prop, PTerm):
+    if isinstance(prop, PropTerm):
         out += '(' + prop.operator
         for i, child in enumerate(prop.children):
             out += ' ' + highlight(child, path[1:] if path and path[0] == TermChildIndex(i) else None)
         out += ')'
-    elif isinstance(prop, PVar):
+    elif isinstance(prop, PropVar):
         out += str(prop)
     else:
         assert_never(prop)
@@ -266,10 +261,11 @@ def highlight(prop: Prop, path: Path | None) -> str:
         out += SUB_END
     return out
 
-def rewrite(
+
+def rewrite_to_goal(
     premise: Prop,
     goal: Prop,
-    rules: list[Rule],
+    kb: PropKB,
     progress: Progress
 ) -> bool:
     print(f"Premise: {premise}", file=progress)
@@ -277,7 +273,7 @@ def rewrite(
     solution, count = search(
         premise,
         goal,
-        rules,
+        kb,
         progress=progress,
         heuristics=[ (1.0, SizeHeuristic()) ]
     )
@@ -292,3 +288,25 @@ def rewrite(
         last = prop
     return True
 
+
+def prove_by_rewriting(expr: Prop, kb: PropKB, progress: Progress) -> bool:
+    # TODO we can probably just call rewrite_to_goal directly
+    #      and consider the cases below optimisations
+    match expr:
+        case PropTerm(operator='implies'):
+            premise = expr.children[0]
+            goal = expr.children[1]
+            return rewrite_to_goal(premise, goal, kb, progress)
+        case PropTerm(operator='and'):
+            for child in expr.children:
+                if not prove_by_rewriting(child, kb, progress):
+                    return False
+            return True
+        case PropTerm(operator='equiv'):
+            # FIXME solve using equivalence substitutions
+            # FIXME might be better to rewrite to (a => b) ^ (b => a) and then solve
+            left = expr.children[0]
+            right = expr.children[1]
+            return rewrite_to_goal(left, right, kb, progress) and rewrite_to_goal(right, left, kb, progress)
+        case _:
+            raise RuntimeError(f"do not yet know how to prove {expr}")

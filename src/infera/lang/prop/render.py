@@ -1,7 +1,7 @@
 
 from collections.abc import Sequence
 
-from .node import PTerm, PVar, Prop
+from .node import PropTerm, PropVar, Prop
 
 
 def render_prop(expr: Prop) -> str:
@@ -11,11 +11,11 @@ def render_prop(expr: Prop) -> str:
 
     def is_wide(prop: Prop) -> bool:
         match prop:
-            case PVar():
+            case PropVar():
                 return False
-            case PTerm() if len(prop.children) == 1:
+            case PropTerm() if len(prop.children) == 1:
                 return is_wide(prop.children[0])
-            case PTerm():
+            case PropTerm():
                 return True
 
     def binary(symbol: str, children: Sequence[Prop]) -> str:
@@ -31,17 +31,17 @@ def render_prop(expr: Prop) -> str:
         return f'{symbol} {inner}'
 
     match expr:
-        case PVar(name):
+        case PropVar(name):
             return name
-        case PTerm(operator='not'):
+        case PropTerm(operator='not'):
             return unary('¬', expr.children)
-        case PTerm(operator='and'):
+        case PropTerm(operator='and'):
             return binary('∧', expr.children)
-        case PTerm(operator='or'):
+        case PropTerm(operator='or'):
             return binary('∨', expr.children)
-        case PTerm(operator='equiv'):
+        case PropTerm(operator='equiv'):
             return binary('⇔', expr.children)
-        case PTerm(operator='implies'):
+        case PropTerm(operator='implies'):
             return binary('⇒', expr.children)
         case _:
             raise RuntimeError(f"could not convert expression to mathematical notation")

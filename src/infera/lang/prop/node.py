@@ -11,7 +11,7 @@ class PropBase:
 
 
 @dataclass(frozen=True)
-class PVar(PropBase):
+class PropVar(PropBase):
     """
     A single variable in propositional logic.
 
@@ -24,7 +24,7 @@ class PVar(PropBase):
 
 
 @dataclass(frozen=True)
-class PTerm(PropBase):
+class PropTerm(PropBase):
     """
     A connective with one or more children.
 
@@ -46,12 +46,37 @@ class PTerm(PropBase):
         return out
 
 
-type Prop = PVar | PTerm
+type Prop = PropVar | PropTerm
+
+
+@dataclass(frozen=True)
+class TermChildIndex:
+    """
+    An edge to a child of a Term.
+    """
+    offset: int
+
+    def get(self, expr: Prop) -> Prop:
+        assert(isinstance(expr, PropTerm))
+        return expr.children[self.offset]
+
+    def set(self, expr: Prop, new_expr: Prop) -> Prop:
+        assert(isinstance(expr, PropTerm))
+        new_children = list(expr.children)
+        new_children[self.offset] = new_expr
+        new_children = FrozenList(new_children)
+        new_children.freeze()
+        return PropTerm(expr.operator, new_children)
+
+    def __str__(self) -> str:
+        return f'.{self.offset}'
+
+type Index = TermChildIndex
 
 
 def parse_expr(sexp: SExp) -> Prop:
     if isinstance(sexp, Sym):
-        return PVar(sexp.name)
+        return PropVar(sexp.name)
     if isinstance(sexp, List):
         assert(len(sexp.head) > 0)
         assert(sexp.tail is None)
@@ -60,7 +85,7 @@ def parse_expr(sexp: SExp) -> Prop:
         # TODO check arity of `name.name`
         args = FrozenList(parse_expr(arg) for arg in sexp.head[1:])
         args.freeze()
-        return PTerm(name.name, args)
+        return PropTerm(name.name, args)
     raise RuntimeError(f"could not parse S-expression {sexp} into first-order logic expression")
 
 

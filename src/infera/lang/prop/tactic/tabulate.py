@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import Sequence, assert_never
 from copy import copy
 
-from .node import Prop, PTerm, PVar, parse_expr
+from infera.lang.prop.kb import PropKB
+from infera.util import Progress
+
+from ..node import Prop, PropTerm, PropVar, parse_expr
 
 class Table:
 
@@ -91,8 +94,8 @@ Env = dict[str, bool]
 
 def variables(expr: Prop) -> Generator[str, None, None]:
     match expr:
-        case PVar(name): yield name
-        case PTerm():
+        case PropVar(name): yield name
+        case PropTerm():
             for child in expr.children:
                 yield from variables(child)
         case _:
@@ -100,8 +103,8 @@ def variables(expr: Prop) -> Generator[str, None, None]:
 
 def eval(expr: Prop, env: Env) -> bool:
     match expr:
-        case PVar(name): return env[name]
-        case PTerm():
+        case PropVar(name): return env[name]
+        case PropTerm():
             values = [ eval(child, env) for child in expr.children ]
             operator = env[expr.operator]
             assert(isinstance(operator, Operator))
@@ -112,7 +115,7 @@ def eval(expr: Prop, env: Env) -> bool:
 def encode_truth_value(value: bool) -> str:
     return '1' if value else '0'
 
-def is_tautology(expr: Prop) -> bool:
+def prove_by_tabulation(expr: Prop, kb: PropKB, progress: Progress) -> bool:
 
     vs = list(sorted(set(variables(expr))))
 
@@ -158,13 +161,15 @@ if __name__ == "__main__":
     parser.add_argument('file', nargs=1)
     args = parser.parse_args()
     fname = args.file[0]
+    kb = PropKB()
+    progress = Progress()
 
     with open(fname, 'r') as f:
         text = f.read()
     prog = sexp.parse_file(text)
     for element in prog:
         expr = parse_expr(element)
-        if is_tautology(expr):
+        if prove_by_tabulation(expr, kb, progress):
             print('Statement is a tautology!')
         else:
             print('Statement is NOT a tautology!')

@@ -3,18 +3,18 @@ from dataclasses import dataclass
 from frozenlist import FrozenList
 
 
-type Node = Term | Formula
+type Pred = PredTerm | PredFormula
 
 
-class NodeBase:
+class PredBase:
     pass
 
 
-type Term = Var | Function
+type PredTerm = PredVar | PredFunction
 
 
 @dataclass(frozen=True)
-class Var(NodeBase):
+class PredVar(PredBase):
     name: str
 
     def __str__(self) -> str:
@@ -22,9 +22,9 @@ class Var(NodeBase):
 
 
 @dataclass(frozen=True)
-class Function(NodeBase):
+class PredFunction(PredBase):
     name: str
-    args: FrozenList[Term]
+    args: FrozenList[PredTerm]
 
     def __str__(self) -> str:
         out = '('
@@ -35,13 +35,13 @@ class Function(NodeBase):
         return out
 
 
-type Formula = Predicate | Connected | Quantized
+type PredFormula = PredPredicate | PredConnective | PredQuantized
 
 
 @dataclass(frozen=True)
-class Predicate(NodeBase):
+class PredPredicate(PredBase):
     name: str
-    args: FrozenList[Connected]
+    args: FrozenList[PredConnective]
 
     def __str__(self) -> str:
         out = '('
@@ -53,16 +53,16 @@ class Predicate(NodeBase):
 
 
 @dataclass(frozen=True)
-class Quantized(NodeBase):
+class PredQuantized(PredBase):
     name: str
-    bexprinders: FrozenList[Var]
-    predicate: Predicate
+    bexprinders: FrozenList[PredVar]
+    predicate: PredPredicate
 
 
 @dataclass(frozen=True)
-class Connected(NodeBase):
+class PredConnective(PredBase):
     operator: str
-    children: FrozenList[Formula]
+    children: FrozenList[PredFormula]
 
     @property
     def arity(self) -> int:
