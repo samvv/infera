@@ -1,7 +1,10 @@
 
 
+from collections.abc import Sequence
 import sys
 from typing import Any, BinaryIO, TextIO, override
+
+from frozenlist import FrozenList
 
 
 def implies(precedent: bool, consequent: bool) -> bool:
@@ -91,3 +94,9 @@ class Progress(TextIO):
         self._replace_last_line(self._line_buffer + message)
         self.out.write('\n')
         self.enabled = False
+
+
+def frozen[T](elements: Sequence[T]) -> FrozenList[T]:
+    l = FrozenList(elements)
+    l.freeze()
+    return l
