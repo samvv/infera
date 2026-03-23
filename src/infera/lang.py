@@ -108,6 +108,9 @@ def parse_keywords(l: Sequence[SExp]) -> dict[str, SExp]:
         out[kw.name] = value
     return out
 
+def is_tactic_name(name: str) -> TypeIs[TacticName]:
+    return name in [ 'rewrite', 'tabulate' ]
+
 def parse_stmt(sexp: SExp) -> Stmt:
     assert(isinstance(sexp, List))
     assert(len(sexp.head) > 0)
@@ -120,7 +123,7 @@ def parse_stmt(sexp: SExp) -> Stmt:
         expr = parse_expr(sexp.head[2])
         kws = parse_keywords(sexp.head[3:])
         val_tactic = kws.get('tactic', Sym('rewrite'))
-        assert(isinstance(val_tactic, Sym))
+        assert(isinstance(val_tactic, Sym) and is_tactic_name(val_tactic.name))
         return TheoremDef(name, expr, val_tactic.name)
     raise RuntimeError(f"unexpected keyword '{kw}'")
 
