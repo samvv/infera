@@ -58,7 +58,7 @@ class PredPredicate(PredBase):
 @dataclass(frozen=True)
 class PredQuantized(PredBase):
     name: str
-    bexprinders: FrozenList[PredVar]
+    binders: FrozenList[PredVar]
     predicate: PredPredicate
 
 
