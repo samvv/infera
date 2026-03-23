@@ -1,0 +1,67 @@
+
+
+from dataclasses import dataclass
+from frozenlist import FrozenList
+
+from infera.sexp import List, SExp, Sym
+
+
+class PropBase:
+    pass
+
+
+@dataclass(frozen=True)
+class PVar(PropBase):
+    """
+    A single variable in propositional logic.
+
+    E.g. the `a` in `a v (b => c)`
+    """
+    name: str
+
+    def __str__(self) -> str:
+        return self.name
+
+
+@dataclass(frozen=True)
+class PTerm(PropBase):
+    """
+    A connective with one or more children.
+
+    E.g. `not a` or `a v b` where `a` and `b` are children.
+    """
+    operator: str
+    children: FrozenList[Prop]
+
+    @property
+    def arity(self) -> int:
+        return len(self.children)
+
+    def __str__(self) -> str:
+        out = '('
+        out += self.operator
+        for child in self.children:
+            out += ' ' + str(child)
+        out += ')'
+        return out
+
+
+type Prop = PVar | PTerm
+
+
+def parse_expr(sexp: SExp) -> Prop:
+    if isinstance(sexp, Sym):
+        return PVar(sexp.name)
+    if isinstance(sexp, List):
+        assert(len(sexp.head) > 0)
+        assert(sexp.tail is None)
+        name = sexp.head[0]
+        assert(isinstance(name, Sym))
+        # TODO check arity of `name.name`
+        args = FrozenList(parse_expr(arg) for arg in sexp.head[1:])
+        args.freeze()
+        return PTerm(name.name, args)
+    raise RuntimeError(f"could not parse S-expression {sexp} into first-order logic expression")
+
+
+

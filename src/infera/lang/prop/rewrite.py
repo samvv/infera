@@ -9,12 +9,12 @@ from frozenlist import FrozenList
 from typing import Sequence, assert_never, override
 
 from infera.util import Progress
-from infera.lang import Expr, Term, Var
+from .node import Prop, PTerm, PVar
 
 @dataclass(frozen=True)
 class Rule:
-    pattern: Expr
-    result: Expr
+    pattern: Prop
+    result: Prop
     name: str | None = None
 
     def __str__(self) -> str:
@@ -24,17 +24,17 @@ class Rule:
 class TermChildIndex:
     offset: int
 
-    def get(self, expr: Expr) -> Expr:
-        assert(isinstance(expr, Term))
+    def get(self, expr: Prop) -> Prop:
+        assert(isinstance(expr, PTerm))
         return expr.children[self.offset]
 
-    def set(self, expr: Expr, new_expr: Expr) -> Expr:
-        assert(isinstance(expr, Term))
+    def set(self, expr: Prop, new_expr: Prop) -> Prop:
+        assert(isinstance(expr, PTerm))
         new_children = list(expr.children)
         new_children[self.offset] = new_expr
         new_children = FrozenList(new_children)
         new_children.freeze()
-        return Term(expr.operator, new_children)
+        return PTerm(expr.operator, new_children)
 
     def __str__(self) -> str:
         return f'.{self.offset}'
@@ -43,13 +43,13 @@ type Index = TermChildIndex
 
 type Path = FrozenList[Index]
 
-def resolve(prop: Expr, path: Path) -> Expr:
+def resolve(prop: Prop, path: Path) -> Prop:
     for index in path:
         prop = index.get(prop)
     return prop
 
-def assign(root: Expr, path: Path, replace: Expr) -> Expr:
-    def visit(prop: Expr, i: int) -> Expr:
+def assign(root: Prop, path: Path, replace: Prop) -> Prop:
+    def visit(prop: Prop, i: int) -> Prop:
         if i == len(path):
             return replace
         index = path[i]
@@ -67,40 +67,40 @@ def assign(root: Expr, path: Path, replace: Expr) -> Expr:
     #     elif isinstance(index, AndIndex):
     # setter(replace)
 
-VarSub = dict[str, Expr]
+VarSub = dict[str, Prop]
 
-Env = dict[str, Expr]
+Env = dict[str, Prop]
 
 class UnifyError(RuntimeError):
     pass
 
-def unify(left: Expr, right: Expr) -> VarSub:
+def unify(left: Prop, right: Prop) -> VarSub:
     out = VarSub()
-    if isinstance(left, Var):
+    if isinstance(left, PVar):
         out[left.name] = right
-    elif isinstance(right, Var):
+    elif isinstance(right, PVar):
         out[right.name] = left
-    elif isinstance(left, Term) and isinstance(right, Term) and left.operator == right.operator:
+    elif isinstance(left, PTerm) and isinstance(right, PTerm) and left.operator == right.operator:
         for a, b in zip(left.children, right.children):
             out.update(unify(a, b))
     else:
         raise UnifyError()
     return out
 
-def equal(a: Expr, b: Expr) -> bool:
-    if isinstance(a, Var) and isinstance(b, Var):
+def equal(a: Prop, b: Prop) -> bool:
+    if isinstance(a, PVar) and isinstance(b, PVar):
         return a.name == b.name
-    if isinstance(a, Term) and isinstance(b, Term) and a.operator == b.operator:
+    if isinstance(a, PTerm) and isinstance(b, PTerm) and a.operator == b.operator:
         for l, r in zip(a.children, b.children):
             if not equal(l, r):
                 return False
         return True
     return False
 
-def substitute(expr: Expr, sub: VarSub) -> Expr:
-    if isinstance(expr, Var):
+def substitute(expr: Prop, sub: VarSub) -> Prop:
+    if isinstance(expr, PVar):
         return sub.get(expr.name, expr)
-    if isinstance(expr, Term):
+    if isinstance(expr, PTerm):
         changed = False
         new_children = []
         for child in expr.children:
@@ -110,23 +110,23 @@ def substitute(expr: Expr, sub: VarSub) -> Expr:
             new_children.append(new_child)
         new_children = FrozenList(new_children)
         new_children.freeze()
-        return Term(expr.operator, new_children) if changed else expr
+        return PTerm(expr.operator, new_children) if changed else expr
     assert_never(expr)
 
-def match(prop: Expr, rule: Rule) -> Expr | None:
+def match(prop: Prop, rule: Rule) -> Prop | None:
     try:
         sub = unify(rule.pattern, prop)
     except UnifyError:
         return None
     return substitute(rule.result, sub)
 
-def match_all(prop: Expr, rules: list[Rule]) -> Iterator[tuple[Rule, Expr]]:
+def match_all(prop: Prop, rules: list[Rule]) -> Iterator[tuple[Rule, Prop]]:
     for rule in rules:
         result = match(prop, rule)
         if result is not None:
             yield rule, result
 
-def search_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
+def search_one(premise: Prop, goal: Prop, rules: list[Rule]) -> Rule | None:
     for rule, result in match_all(premise, rules):
         try:
             unify(result, goal)
@@ -137,7 +137,7 @@ def search_one(premise: Expr, goal: Expr, rules: list[Rule]) -> Rule | None:
 @dataclass(order=True)
 class Node:
     score: float
-    expr: Expr = field(compare=False)
+    expr: Prop = field(compare=False)
     rule: Rule | None = field(compare=False)
     path: Path = field(compare=False)
     parent: 'Node | None' = field(compare=False)
@@ -145,13 +145,13 @@ class Node:
 _empty_frozenlist = FrozenList()
 _empty_frozenlist.freeze()
 
-def enumerate_paths(prop: Expr, path: Path | None = None) -> Iterable[Path]:
+def enumerate_paths(prop: Prop, path: Path | None = None) -> Iterable[Path]:
     yield _empty_frozenlist
     if path is None:
         path = FrozenList()
-    if isinstance(prop, Var):
+    if isinstance(prop, PVar):
         return
-    if isinstance(prop, Term):
+    if isinstance(prop, PTerm):
         for i, child in enumerate(prop.children):
             child_path = FrozenList([ *path, TermChildIndex(i) ])
             child_path.freeze()
@@ -160,13 +160,13 @@ def enumerate_paths(prop: Expr, path: Path | None = None) -> Iterable[Path]:
         return
     assert_never(prop)
 
-def size(expr: Expr) -> int:
+def size(expr: Prop) -> int:
     match expr:
-        case Var(): return 1
-        case Term(): return 1 + sum(size(child) for child in expr.children)
+        case PVar(): return 1
+        case PTerm(): return 1 + sum(size(child) for child in expr.children)
         case _: assert_never(expr)
 
-def score(curr: Expr, goal: Expr) -> int:
+def score(curr: Prop, goal: Prop) -> int:
     return size(curr)
 
 def noop(_: int) -> None: pass
@@ -174,13 +174,13 @@ def noop(_: int) -> None: pass
 class Heuristic(abc.ABC):
 
     @abstractmethod
-    def rate(self, curr: Expr, goal: Expr) -> float:
+    def rate(self, curr: Prop, goal: Prop) -> float:
         raise NotImplementedError() 
 
 class SizeHeuristic(Heuristic):
 
     @override
-    def rate(self, curr: Expr, goal: Expr) -> float:
+    def rate(self, curr: Prop, goal: Prop) -> float:
         return size(curr)
 
 class MaxStepsExceededError(RuntimeError):
@@ -189,18 +189,18 @@ class MaxStepsExceededError(RuntimeError):
         super().__init__(f"limit of {limit} iterations reached")
 
 def search(
-    premise: Expr,
-    goal: Expr,
+    premise: Prop,
+    goal: Prop,
     rules: list[Rule],
     heuristics: Sequence[tuple[float, Heuristic]] | None = None,
     progress: Progress | None = None,
     limit: int = 0
-) -> tuple[list[tuple[Expr, Rule, Path]] | None, int]:
+) -> tuple[list[tuple[Prop, Rule, Path]] | None, int]:
 
     if heuristics is None:
         heuristics = []
 
-    def score(x: Expr) -> float:
+    def score(x: Prop) -> float:
         return sum(w * h.rate(x, goal) for w, h in heuristics)
 
     count = 0
@@ -212,7 +212,7 @@ def search(
     #         queue.append(Node(prop, rule, path, node))
 
     node = None
-    visited = set[tuple[Expr, Path]]()
+    visited = set[tuple[Prop, Path]]()
     while queue:
         node = queue.get()
         if progress is not None:
@@ -249,16 +249,16 @@ def search(
 SUB_START = '\033[1m\033[92m'
 SUB_END   = '\033[0m'
 
-def highlight(prop: Expr, path: Path | None) -> str:
+def highlight(prop: Prop, path: Path | None) -> str:
     out = ''
     if path is not None and not path:
         out += SUB_START
-    if isinstance(prop, Term):
+    if isinstance(prop, PTerm):
         out += '(' + prop.operator
         for i, child in enumerate(prop.children):
             out += ' ' + highlight(child, path[1:] if path and path[0] == TermChildIndex(i) else None)
         out += ')'
-    elif isinstance(prop, Var):
+    elif isinstance(prop, PVar):
         out += str(prop)
     else:
         assert_never(prop)
@@ -267,8 +267,8 @@ def highlight(prop: Expr, path: Path | None) -> str:
     return out
 
 def rewrite(
-    premise: Expr,
-    goal: Expr,
+    premise: Prop,
+    goal: Prop,
     rules: list[Rule],
     progress: Progress
 ) -> bool:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Sequence, assert_never
 from copy import copy
 
-from infera.lang import Expr, Term, Var, parse_expr
+from .node import Prop, PTerm, PVar, parse_expr
 
 class Table:
 
@@ -89,19 +89,19 @@ for operator in operators:
 
 Env = dict[str, bool]
 
-def variables(expr: Expr) -> Generator[str, None, None]:
+def variables(expr: Prop) -> Generator[str, None, None]:
     match expr:
-        case Var(name): yield name
-        case Term():
+        case PVar(name): yield name
+        case PTerm():
             for child in expr.children:
                 yield from variables(child)
         case _:
             assert_never(expr)
 
-def eval(expr: Expr, env: Env) -> bool:
+def eval(expr: Prop, env: Env) -> bool:
     match expr:
-        case Var(name): return env[name]
-        case Term():
+        case PVar(name): return env[name]
+        case PTerm():
             values = [ eval(child, env) for child in expr.children ]
             operator = env[expr.operator]
             assert(isinstance(operator, Operator))
@@ -112,7 +112,7 @@ def eval(expr: Expr, env: Env) -> bool:
 def encode_truth_value(value: bool) -> str:
     return '1' if value else '0'
 
-def is_tautology(expr: Expr) -> bool:
+def is_tautology(expr: Prop) -> bool:
 
     vs = list(sorted(set(variables(expr))))
 

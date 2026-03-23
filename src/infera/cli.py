@@ -2,24 +2,25 @@
 import argparse
 from collections.abc import Sequence
 
-from infera.rewrite import Rule, rewrite
-from infera.tabulate import is_tautology
-from infera.lang import Expr, Term, TheoremDef, parse_stmt
+from infera.lang.prop.rewrite import Rule, rewrite
+from infera.lang.prop.tabulate import is_tautology
+from infera.lang.prop import Prop, PTerm
+from infera.lang import TheoremDef, parse_stmt
 from infera import sexp
 from infera.util import Progress
 
-def prove(expr: Expr, rules: list[Rule], progress: Progress) -> bool:
+def prove(expr: Prop, rules: list[Rule], progress: Progress) -> bool:
     match expr:
-        case Term(operator='implies'):
+        case PTerm(operator='implies'):
             premise = expr.children[0]
             goal = expr.children[1]
             return rewrite(premise, goal, rules, progress)
-        case Term(operator='and'):
+        case PTerm(operator='and'):
             for child in expr.children:
                 if not prove(child, rules, progress):
                     return False
             return True
-        case Term(operator='equiv'):
+        case PTerm(operator='equiv'):
             # FIXME solve using equivalence substitutions
             # FIXME might be better to rewrite to (a => b) ^ (b => a) and then solve
             left = expr.children[0]
@@ -28,18 +29,18 @@ def prove(expr: Expr, rules: list[Rule], progress: Progress) -> bool:
         case _:
             raise RuntimeError(f"do not yet know how to prove {expr}")
 
-def extend(rules: list[Rule], expr: Expr, name: str) -> None:
+def extend(rules: list[Rule], expr: Prop, name: str) -> None:
     match expr:
-        case Term(operator='implies'):
+        case PTerm(operator='implies'):
             premise = expr.children[0]
             goal = expr.children[1]
             rules.append(Rule(premise, goal, name))
-        case Term(operator='equiv'):
+        case PTerm(operator='equiv'):
             left = expr.children[0]
             right = expr.children[1]
             rules.append(Rule(left, right, name))
             rules.append(Rule(right, left, name))
-        case Term(operator='and'):
+        case PTerm(operator='and'):
             for i, child in enumerate(expr.children):
                 extend(rules, child, f'{name}_{i}')
         case _:
