@@ -103,11 +103,6 @@ class PropKB(AbstractKB):
                raise RuntimeError(f"did not yet know how to add proven {node} to the KB")
 
     def match_rules(self, prop: Prop) -> Iterable[Rule]:
-        print("SEEK")
-        print(prop)
-        print("FIND")
-        for r in self._matcher.lookup(prop):
-            print(str(r))
         return self._matcher.lookup(prop)
 
     def count_rules(self) -> int:
