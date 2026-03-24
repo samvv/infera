@@ -51,9 +51,13 @@ class DTree[T]:
             return []
         node = self.root
         for symbol in symbols(pattern):
-            if symbol not in node.children:
+            if symbol in node.children:
+                node = node.children[symbol]
+            elif '*' in node.children:
+                node = node.children['*']
+                break
+            else:
                 return []
-            node = node.children[symbol]
         return node.value
 
 
