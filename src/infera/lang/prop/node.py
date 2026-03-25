@@ -76,7 +76,7 @@ class TermChildIndex:
         return PropTerm(expr.operator, new_children)
 
     def __str__(self) -> str:
-        return f'.{self.offset}'
+        return str(self.offset)
 
 
 type Index = TermChildIndex
