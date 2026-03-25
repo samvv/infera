@@ -6,15 +6,15 @@ from typing import assert_never, override
 
 from infera.abstract import AbstractKB, AbstractNode
 
-from .node import PropTerm, Prop, PropVar
+from .node import PropTerm, Prop, PropVar, prop_size
 
 
-def symbols(prop: Prop) -> Iterable[str]:
+def symbols(prop: Prop) -> Iterable[tuple[str, int]]:
     match prop:
         case PropVar():
-            yield '*'
+            yield '*', 0
         case PropTerm():
-            yield prop.operator
+            yield prop.operator, prop_size(prop)
             for child in prop.children:
                 yield from symbols(child)
         case _:
@@ -37,7 +37,7 @@ class DTree[T]:
         if not self.root:
             self.root = DNode()
         node = self.root
-        for symbol in symbols(expr):
+        for symbol, _ in symbols(expr):
             if symbol in node.children:
                 node = node.children[symbol]
             else:
@@ -49,16 +49,21 @@ class DTree[T]:
     def lookup(self, pattern: Prop) -> Sequence[Rule]:
         if self.root is None:
             return []
-        node = self.root
-        for symbol in symbols(pattern):
+        out = []
+        syms = list(symbols(pattern))
+
+        def explore(i: int, node: DNode) -> None:
+            if i == len(syms):
+                out.extend(node.value)
+                return
+            symbol, skip = syms[i]
+            if '*' in node.children:
+                explore(i + skip, node.children['*'])
             if symbol in node.children:
-                node = node.children[symbol]
-            elif '*' in node.children:
-                node = node.children['*']
-                break
-            else:
-                return []
-        return node.value
+                explore(i+1, node.children[symbol])
+
+        explore(0, self.root)
+        return out
 
 
 @dataclass(frozen=True)
