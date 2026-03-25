@@ -168,7 +168,6 @@ class Parser:
         if t0.ty == STRING:
             return Lit(t0.value)
         if t0.ty == KEYWORD:
-            print(t0.value)
             return Keyword(t0.value)
         if t0.ty == LPAREN:
             head = []

@@ -183,15 +183,7 @@ def search(
     # queue.append(Weighted(0, Node(premise, None, _empty_frozenlist, None)))
 
     def enqueue(node: Node) -> None:
-        #print(f'++++++ {highlight(node.expr, node.path)} @ {node.rule} ~ {h.rate(node, goal)}', file=progress)
         heapq.heappush(queue, Weighted(h.rate(node, goal), node))
-
-    def dump(node: Node) -> None:
-        if node.rule is not None:
-            rule, path = node.rule
-            print(f'{highlight(node.expr, path)} @ {rule} ~ {h.rate(node, goal)}', file=progress)
-        else:
-            print(f'{node.expr} ~ {h.rate(node, goal)}', file=progress)
 
     # Register all possible rewrite points for the premise
     for path in enumerate_paths(premise):
@@ -200,8 +192,6 @@ def search(
     node = None
     visited = set[tuple[Prop, Path]]()
     while queue:
-        # for node in queue:
-        #     print(f">>>> {highlight(node.data.expr, node.data.path)} ~ {node.weight}")
         node = heapq.heappop(queue).data
         if progress is not None:
             progress.status(f"Search iteration {count}")
@@ -214,7 +204,6 @@ def search(
         visited.add(node_key)
         if equal(node.expr, goal):
             break
-        dump(node)
         for new_node in expand(node, kb):
             enqueue(new_node)
 
