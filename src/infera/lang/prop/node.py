@@ -97,4 +97,9 @@ def parse_expr(sexp: SExp) -> Prop:
     raise RuntimeError(f"could not parse S-expression {sexp} into first-order logic expression")
 
 
+def prop_size(expr: Prop) -> int:
+    match expr:
+        case PropVar(): return 1
+        case PropTerm(): return 1 + sum(prop_size(child) for child in expr.children)
+        case _: assert_never(expr)
 

@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 
-from abc import abstractmethod
-import abc
-from queue import PriorityQueue
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from frozenlist import FrozenList
-from typing import Sequence, assert_never, override
+from typing import assert_never, override
+import heapq
 
-from infera.util import Progress
+from infera.search import ConstantHeuristic, Heuristic, WeightedHeuristic
+from infera.util import Progress, frozen
 from ..kb import PropKB, Rule
-from ..node import Index, Prop, PropTerm, PropVar, TermChildIndex
+from ..node import Index, Prop, PropTerm, PropVar, TermChildIndex, prop_size
 
 
 type Path = FrozenList[Index]
@@ -91,7 +90,7 @@ def substitute(expr: Prop, sub: VarSub) -> Prop:
     assert_never(expr)
 
 
-def match(prop: Prop, rule: Rule) -> Prop | None:
+def apply_rule(prop: Prop, rule: Rule) -> Prop | None:
     try:
         sub = unify(rule.pattern, prop)
     except UnifyError:
@@ -101,7 +100,7 @@ def match(prop: Prop, rule: Rule) -> Prop | None:
 
 def match_all(prop: Prop, kb: PropKB) -> Iterator[tuple[Rule, Prop]]:
     for rule in kb.match_rules(prop):
-        result = match(prop, rule)
+        result = apply_rule(prop, rule)
         if result is not None:
             yield rule, result
 
@@ -115,13 +114,18 @@ def search_one(premise: Prop, goal: Prop, kb: PropKB) -> Rule | None:
         return rule
 
 
-@dataclass(order=True)
+@dataclass
 class Node:
-    score: float
-    expr: Prop = field(compare=False)
-    rule: Rule | None = field(compare=False)
-    path: Path = field(compare=False)
-    parent: 'Node | None' = field(compare=False)
+    expr: Prop
+    rule: tuple[Rule, Path] | None
+    focus: Path
+    parent: 'Node | None'
+
+
+@dataclass(order=True)
+class Weighted[T]:
+    weight: float
+    data: T = field(compare=False)
 
 
 _empty_frozenlist = FrozenList()
@@ -129,47 +133,27 @@ _empty_frozenlist.freeze()
 
 
 def enumerate_paths(prop: Prop, path: Path | None = None) -> Iterable[Path]:
-    yield _empty_frozenlist
+    """
+    This method MUST also include the empty path.
+    """
     if path is None:
-        path = FrozenList()
+        path = frozen([])
+    yield path
     if isinstance(prop, PropVar):
         return
     if isinstance(prop, PropTerm):
         for i, child in enumerate(prop.children):
-            child_path = FrozenList([ *path, TermChildIndex(i) ])
-            child_path.freeze()
+            child_path = frozen([ *path, TermChildIndex(i) ])
             yield from enumerate_paths(child, child_path)
-            yield child_path
         return
     assert_never(prop)
 
 
-def size(expr: Prop) -> int:
-    match expr:
-        case PropVar(): return 1
-        case PropTerm(): return 1 + sum(size(child) for child in expr.children)
-        case _: assert_never(expr)
-
-
-def score(curr: Prop, goal: Prop) -> int:
-    return size(curr)
-
-
-def noop(_: int) -> None: pass
-
-
-class Heuristic(abc.ABC):
-
-    @abstractmethod
-    def rate(self, curr: Prop, goal: Prop) -> float:
-        raise NotImplementedError() 
-
-
-class SizeHeuristic(Heuristic):
+class PropSizeHeuristic(Heuristic[Node]):
 
     @override
-    def rate(self, curr: Prop, goal: Prop) -> float:
-        return size(curr)
+    def rate(self, curr: Node, goal: Node) -> float:
+        return prop_size(curr.expr)
 
 
 class MaxStepsExceededError(RuntimeError):
@@ -181,63 +165,84 @@ class MaxStepsExceededError(RuntimeError):
 type Step = tuple[Prop, Rule, Path]
 
 
+def expand(node: Node, kb: PropKB) -> Iterable[Node]:
+    redex = resolve(node.expr, node.focus)
+    for rule in kb.match_rules(redex):
+        new_redex = apply_rule(redex, rule)
+        if new_redex is not None:
+            new_prop = assign(node.expr, node.focus, new_redex)
+            for path in enumerate_paths(new_redex):
+                full_path = frozen([ *node.focus, *path ])
+                yield Node(new_prop, (rule, node.focus), full_path, node)
+
+
 def search(
     premise: Prop,
     goal: Prop,
     kb: PropKB,
-    heuristics: Sequence[tuple[float, Heuristic]] | None = None,
+    h: Heuristic | None = None,
     progress: Progress | None = None,
     limit: int = 0
 ) -> tuple[list[Step] | None, int]:
 
-    if heuristics is None:
-        heuristics = []
-
-    def score(x: Prop) -> float:
-        return sum(w * h.rate(x, goal) for w, h in heuristics)
+    if h is None:
+        h = ConstantHeuristic(1.0)
 
     count = 0
-    queue = PriorityQueue[Node]()
-    queue.put(Node(0, premise, None, _empty_frozenlist, None))
+    queue = list[Weighted[Node]]()
+    # queue.append(Weighted(0, Node(premise, None, _empty_frozenlist, None)))
 
-    # def enqueue_all(prop: Prop, rule: Rule | None = None, node: Node | None = None) -> None:
-    #     for path in enumerate_paths(prop):
-    #         queue.append(Node(prop, rule, path, node))
+    def enqueue(node: Node) -> None:
+        #print(f'++++++ {highlight(node.expr, node.path)} @ {node.rule} ~ {h.rate(node, goal)}', file=progress)
+        heapq.heappush(queue, Weighted(h.rate(node, goal), node))
+
+    def dump(node: Node) -> None:
+        if node.rule is not None:
+            rule, path = node.rule
+            print(f'{highlight(node.expr, path)} @ {rule} ~ {h.rate(node, goal)}', file=progress)
+        else:
+            print(f'{node.expr} ~ {h.rate(node, goal)}', file=progress)
+
+    # Register all possible rewrite points for the premise
+    for path in enumerate_paths(premise):
+        enqueue(Node(premise, None, path, None))
 
     node = None
     visited = set[tuple[Prop, Path]]()
+    # visited.add((premise, _empty_frozenlist))
     while queue:
-        node = queue.get()
+        # for node in queue:
+        #     print(f">>>> {highlight(node.data.expr, node.data.path)} ~ {node.weight}")
+        node = heapq.heappop(queue).data
         if progress is not None:
             progress.status(f"Search iteration {count}")
         if limit > 0 and limit == count:
             raise MaxStepsExceededError(limit=limit)
         count += 1
-        if equal(node.expr, goal):
-            break
-        node_key = (node.expr, node.path)
+        node_key = (node.expr, node.focus)
         if node_key in visited:
             continue
         visited.add(node_key)
-        print(node.expr, file=progress)
-        redex = resolve(node.expr, node.path)
-        for path in enumerate_paths(redex):
-            redex_2 = resolve(redex, path)
-            for rule in kb.match_rules(redex_2):
-                new_redex = match(redex_2, rule)
-                if new_redex is not None:
-                    full_path = FrozenList([ *node.path, *path ])
-                    full_path.freeze()
-                    new_prop = assign(node.expr, full_path, new_redex)
-                    queue.put(Node(score(new_prop), new_prop, rule, full_path, node))
+        if equal(node.expr, goal):
+            break
+        dump(node)
+        for new_node in expand(node, kb):
+            enqueue(new_node)
+
     if node is None:
         return None, count
     out = []
     while node.parent is not None:
-        out.append((node.expr, node.rule, node.path))
+        r, p = nonnull(node.rule)
+        out.append((node.expr, r, p))
         node = node.parent
     out.reverse()
     return out, count
+
+
+def nonnull[T](value: T | None) -> T:
+    assert(value is not None)
+    return value
 
 
 SUB_START = '\033[1m\033[92m'
@@ -275,7 +280,8 @@ def rewrite_to_goal(
         goal,
         kb,
         progress=progress,
-        heuristics=[ (1.0, SizeHeuristic()) ]
+        h=WeightedHeuristic([ (1.0, PropSizeHeuristic()) ]),
+        limit=8000
     )
     print(f"Searched {count} states", file=progress)
     if solution is None:
