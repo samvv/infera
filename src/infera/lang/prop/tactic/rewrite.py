@@ -29,16 +29,6 @@ def assign(root: Prop, path: Path, replace: Prop) -> Prop:
         child = index.get(prop)
         return index.set(prop, visit(child, i+1))
     return visit(root, 0)
-    # def setter(value): return value
-    # prop = root
-    # for index in path:
-    #     if isinstance(index, NotIndex):
-    #         def setter_2(value, prop=prop):
-    #             assert(isinstance(prop, Not))
-    #             prop.prop = value
-    #         setter = setter_2
-    #     elif isinstance(index, AndIndex):
-    # setter(replace)
 
 
 VarSub = dict[str, Prop]
@@ -209,7 +199,6 @@ def search(
 
     node = None
     visited = set[tuple[Prop, Path]]()
-    # visited.add((premise, _empty_frozenlist))
     while queue:
         # for node in queue:
         #     print(f">>>> {highlight(node.data.expr, node.data.path)} ~ {node.weight}")
