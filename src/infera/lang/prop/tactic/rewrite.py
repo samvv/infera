@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
+import math
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from frozenlist import FrozenList
-from typing import assert_never, override
+from typing import ChainMap, assert_never, override
 import heapq
 
 from infera.search import ConstantHeuristic, Heuristic, WeightedHeuristic
@@ -143,7 +144,18 @@ class PropSizeHeuristic(Heuristic[Node]):
 
     @override
     def rate(self, curr: Node, goal: Node) -> float:
-        return prop_size(curr.expr)
+        return math.atan(prop_size(curr.expr))
+
+
+class ChainLengthHeuristic(Heuristic[Node]):
+
+    @override
+    def rate(self, curr: Node, goal: Node) -> float:
+        count = 0
+        while curr.parent is not None:
+            count += 1
+            curr = curr.parent
+        return math.atan(count)
 
 
 class MaxStepsExceededError(RuntimeError):
@@ -258,7 +270,7 @@ def rewrite_to_goal(
         goal,
         kb,
         progress=progress,
-        h=WeightedHeuristic([ (1.0, PropSizeHeuristic()) ]),
+        h=WeightedHeuristic([ (0.5, PropSizeHeuristic()), (0.5, ChainLengthHeuristic()) ]),
         limit=8000
     )
     print(f"Searched {count} states", file=progress)
